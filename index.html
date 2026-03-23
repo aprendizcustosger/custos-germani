@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Custos Semanais Germani Alimentos</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .card { background: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #003366; text-align: center; margin-top: 0; }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        input[type="file"], input[type="date"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #003366; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #002244; }
+        #status { margin-top: 20px; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Custos Germani Alimentos</h1>
+        
+        <div class="input-group">
+            <label>1. Selecione a Data da Planilha (Ex: Segunda-feira da semana):</label>
+            <input type="date" id="dataReferencia">
+        </div>
+
+        <div class="input-group">
+            <label>2. Selecione a Planilha Crua (.xlsx):</label>
+            <input type="file" id="fileInput" accept=".xlsx">
+        </div>
+
+        <button onclick="processarEEnviar()">Processar e Enviar para o Banco</button>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        // CONFIGURAÇÃO DO SUPABASE 
+        const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function processarEEnviar() {
+            const fileInput = document.getElementById('fileInput');
+            const dataRef = document.getElementById('dataReferencia').value;
+            const status = document.getElementById('status');
+
+            if (!fileInput.files[0] || !dataRef) {
+                alert("Por favor, selecione o arquivo e a data!");
+                return;
+            }
+
+            status.innerText = "Processando dados...";
+            status.style.color = "blue";
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet);
+
+                // O TRADUTOR: Mapeia as colunas da Imagem 1 para o Banco
+                const dadosLimpinhos = rows.map(row => ({
+                    codigo_produto: String(row['Produto'] || ''),
+                    descricao: row['Descrição'] || '',
+                    custo_variavel: parseFloat(parseFloat(row['Custo Variável'] || 0).toFixed(2)),
+                    custo_fixo: parseFloat(parseFloat(row['Custo Direto Fixo'] || 0).toFixed(2)),
+                    custo_total: parseFloat(parseFloat(row['Custo Total'] || 0).toFixed(2)),
+                    data_referencia: dataRef
+                })).filter(item => item.codigo_produto !== ''); // Remove linhas vazias
+
+                // ENVIO PARA O SUPABASE
+                const { error } = await supabase
+                    .from('historico_custos')
+                    .insert(dadosLimpinhos);
+
+                if (error) {
+                    status.innerText = "Erro ao enviar: " + error.message;
+                    status.style.color = "red";
+                } else {
+                    status.innerText = "✅ Sucesso! " + dadosLimpinhos.length + " produtos salvos.";
+                    status.style.color = "green";
+                }
+            };
+            reader.readAsArrayBuffer(fileInput.files[0]);
+        }
+    </script>
+</body>
+</html>
