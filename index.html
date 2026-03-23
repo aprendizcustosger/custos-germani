@@ -42,7 +42,8 @@
         const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // CORREÇÃO: Mudamos o nome para 'clienteSupabase' para não dar conflito
+        const clienteSupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         async function processarEEnviar() {
             const fileInput = document.getElementById('fileInput');
@@ -74,8 +75,8 @@
                     data_referencia: dataRef
                 })).filter(item => item.codigo_produto !== ''); // Remove linhas vazias
 
-                // ENVIO PARA O SUPABASE
-                const { error } = await supabase
+                // CORREÇÃO: Usando o novo nome 'clienteSupabase' aqui também
+                const { error } = await clienteSupabase
                     .from('historico_custos')
                     .insert(dadosLimpinhos);
 
