@@ -2,94 +2,187 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Custos Semanais Germani Alimentos</title>
+    <title>Dashboard Custos - Germani Alimentos</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
-        .card { background: white; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h1 { color: #003366; text-align: center; margin-top: 0; }
-        .input-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; }
-        input[type="file"], input[type="date"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #003366; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: 0.3s; }
+        :root { --primary: #003366; --secondary: #f0f2f5; --success: #28a745; --danger: #dc3545; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--secondary); margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ccc; }
+        .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: none; font-weight: bold; font-size: 16px; }
+        .tab-btn.active { border-bottom: 3px solid var(--primary); color: var(--primary); }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: var(--primary); color: white; cursor: pointer; border: none; transition: 0.3s; font-weight: bold; }
         button:hover { background: #002244; }
-        #status { margin-top: 20px; text-align: center; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 14px; }
+        th { background-color: var(--primary); color: white; }
+        .up { color: var(--danger); font-weight: bold; }
+        .down { color: var(--success); font-weight: bold; }
+        #chartContainer { height: 300px; margin-top: 20px; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h1>Custos Germani Alimentos</h1>
-        
-        <div class="input-group">
-            <label>1. Selecione a Data da Planilha (Ex: Segunda-feira da semana):</label>
-            <input type="date" id="dataReferencia">
-        </div>
-
-        <div class="input-group">
-            <label>2. Selecione a Planilha Crua (.xlsx):</label>
-            <input type="file" id="fileInput" accept=".xlsx">
-        </div>
-
-        <button onclick="processarEEnviar()">Processar e Enviar para o Banco</button>
-
-        <div id="status"></div>
+<div class="container">
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="showTab('import')">📥 Importar Dados</button>
+        <button class="tab-btn" onclick="showTab('report')">📊 Relatórios e Gráficos</button>
     </div>
 
-    <script>
-        // CONFIGURAÇÃO DO SUPABASE 
-        const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
-        
-        // CORREÇÃO: Mudamos o nome para 'clienteSupabase' para não dar conflito
-        const clienteSupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    <div id="tab-import" class="tab-content">
+        <div class="card">
+            <h2>Enviar Nova Planilha Semanal</h2>
+            <div class="grid">
+                <div>
+                    <label>Data de Referência:</label>
+                    <input type="date" id="importDate">
+                </div>
+                <div>
+                    <label>Selecione o Arquivo (.xlsx):</label>
+                    <input type="file" id="fileInput" accept=".xlsx">
+                </div>
+            </div>
+            <button onclick="uploadData()" style="margin-top: 20px;">Processar e Salvar no Banco</button>
+            <div id="importStatus" style="margin-top: 15px; text-align: center;"></div>
+        </div>
+    </div>
 
-        async function processarEEnviar() {
-            const fileInput = document.getElementById('fileInput');
-            const dataRef = document.getElementById('dataReferencia').value;
-            const status = document.getElementById('status');
+    <div id="tab-report" class="tab-content hidden">
+        <div class="card">
+            <h2>Comparativo de Custos</h2>
+            <div class="grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div>
+                    <label>Semana Base (Antiga):</label>
+                    <input type="date" id="dateA">
+                </div>
+                <div>
+                    <label>Semana Nova (Atual):</label>
+                    <input type="date" id="dateB">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button onclick="compareCosts()">Comparar Custos</button>
+                </div>
+            </div>
+        </div>
 
-            if (!fileInput.files[0] || !dataRef) {
-                alert("Por favor, selecione o arquivo e a data!");
-                return;
+        <div id="resultArea" class="hidden">
+            <div class="card">
+                <h3>Variação por Produto</h3>
+                <div id="chartContainer">
+                    <canvas id="costChart"></canvas>
+                </div>
+                <div id="tableContainer"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    let myChart = null;
+
+    function showTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.remove('hidden');
+        event.target.classList.add('active');
+    }
+
+    async function uploadData() {
+        const file = document.getElementById('fileInput').files[0];
+        const date = document.getElementById('importDate').value;
+        const status = document.getElementById('importStatus');
+        if(!file || !date) return alert("Preencha data e arquivo!");
+
+        status.innerHTML = "Limpando e enviando...";
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet);
+
+            const toInsert = rows.map(r => ({
+                codigo_produto: String(r['Produto'] || ''),
+                descricao: r['Descrição'] || '',
+                custo_total: parseFloat(r['Custo Total'] || 0),
+                data_referencia: date
+            })).filter(i => i.codigo_produto);
+
+            const { error } = await client.from('historico_custos').insert(toInsert);
+            status.innerHTML = error ? "Erro: " + error.message : "✅ " + toInsert.length + " itens salvos!";
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    async function compareCosts() {
+        const dateA = document.getElementById('dateA').value;
+        const dateB = document.getElementById('dateB').value;
+        if(!dateA || !dateB) return alert("Selecione as duas datas!");
+
+        const { data: costs } = await client.from('historico_custos')
+            .select('*')
+            .in('data_referencia', [dateA, dateB]);
+
+        processComparison(costs, dateA, dateB);
+    }
+
+    function processComparison(data, dateA, dateB) {
+        const produtos = {};
+        data.forEach(item => {
+            if(!produtos[item.codigo_produto]) {
+                produtos[item.codigo_produto] = { desc: item.descricao, valA: 0, valB: 0 };
             }
+            if(item.data_referencia === dateA) produtos[item.codigo_produto].valA = item.custo_total;
+            if(item.data_referencia === dateB) produtos[item.codigo_produto].valB = item.custo_total;
+        });
 
-            status.innerText = "Processando dados...";
-            status.style.color = "blue";
+        let html = `<table><tr><th>Cód</th><th>Descrição</th><th>${dateA}</th><th>${dateB}</th><th>Var %</th></tr>`;
+        const labels = [];
+        const diffs = [];
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rows = XLSX.utils.sheet_to_json(sheet);
+        Object.keys(produtos).forEach(cod => {
+            const p = produtos[cod];
+            const varPerc = p.valA > 0 ? ((p.valB - p.valA) / p.valA * 100).toFixed(2) : 0;
+            const classe = varPerc > 0 ? 'up' : (varPerc < 0 ? 'down' : '');
+            
+            html += `<tr><td>${cod}</td><td>${p.desc}</td><td>R$ ${p.valA}</td><td>R$ ${p.valB}</td><td class="${classe}">${varPerc}%</td></tr>`;
+            
+            if(Math.abs(varPerc) > 0) {
+                labels.push(p.desc.substring(0,15));
+                diffs.push(varPerc);
+            }
+        });
 
-                // O TRADUTOR: Mapeia as colunas da Imagem 1 para o Banco
-                const dadosLimpinhos = rows.map(row => ({
-                    codigo_produto: String(row['Produto'] || ''),
-                    descricao: row['Descrição'] || '',
-                    custo_variavel: parseFloat(parseFloat(row['Custo Variável'] || 0).toFixed(2)),
-                    custo_fixo: parseFloat(parseFloat(row['Custo Direto Fixo'] || 0).toFixed(2)),
-                    custo_total: parseFloat(parseFloat(row['Custo Total'] || 0).toFixed(2)),
-                    data_referencia: dataRef
-                })).filter(item => item.codigo_produto !== ''); // Remove linhas vazias
+        document.getElementById('tableContainer').innerHTML = html + "</table>";
+        document.getElementById('resultArea').classList.remove('hidden');
+        renderChart(labels, diffs);
+    }
 
-                // CORREÇÃO: Usando o novo nome 'clienteSupabase' aqui também
-                const { error } = await clienteSupabase
-                    .from('historico_custos')
-                    .insert(dadosLimpinhos);
-
-                if (error) {
-                    status.innerText = "Erro ao enviar: " + error.message;
-                    status.style.color = "red";
-                } else {
-                    status.innerText = "✅ Sucesso! " + dadosLimpinhos.length + " produtos salvos.";
-                    status.style.color = "green";
-                }
-            };
-            reader.readAsArrayBuffer(fileInput.files[0]);
-        }
-    </script>
+    function renderChart(labels, values) {
+        if(myChart) myChart.destroy();
+        const ctx = document.getElementById('costChart').getContext('2d');
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Variação % de Custo',
+                    data: values,
+                    backgroundColor: values.map(v => v > 0 ? '#dc3545' : '#28a745')
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+</script>
 </body>
 </html>
