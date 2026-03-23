@@ -114,42 +114,67 @@
     const S_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
     const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
     const sb = supabase.createClient(S_URL, S_KEY);
-    let masterData = [], rawCostData = [], chartInstance = null, isAfunilado = false;
+    
+    let masterData = []; // Dicionário de produtos
+    let famsMaster = []; // Tabela de categorias_familia
+    let rawCostData = [], chartInstance = null, isAfunilado = false;
 
     // Carregar filtros ao abrir
     window.onload = async () => {
+        // Carrega Origens
         const { data: origens } = await sb.from('categorias_origem').select('*');
-        origens?.forEach(o => document.getElementById('selO').innerHTML += `<option value="${o.id}">${o.id} - ${o.descricao}</option>`);
+        const selO = document.getElementById('selO');
+        origens?.forEach(o => selO.innerHTML += `<option value="${o.id}">${o.id} - ${o.descricao}</option>`);
         
-        // Carrega o dicionário para a cascata
-        const { data: dict } = await sb.from('dicionario_produtos').select(`*, categorias_familia(id, descricao), categorias_agrupamento(id, descricao)`);
+        // Carrega Dicionário Bruto
+        const { data: dict } = await sb.from('dicionario_produtos').select('*');
         masterData = dict || [];
+
+        // Carrega Descrições de Famílias
+        const { data: fams } = await sb.from('categorias_familia').select('*');
+        famsMaster = fams || [];
     };
 
     function showTab(t) {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-'+t).classList.remove('hidden');
-        event.target.classList.add('active');
+        if(event) event.target.classList.add('active');
     }
 
     function applyCascata(nivel) {
-        const o = document.getElementById('selO').value, f = document.getElementById('selF'), a = document.getElementById('selA');
+        const oValue = document.getElementById('selO').value;
+        const fSelect = document.getElementById('selF');
+        const aSelect = document.getElementById('selA');
 
         if(nivel === 'O') {
-            f.innerHTML = a.innerHTML = '<option value="TODAS">TODAS</option>';
-            const filtrados = masterData.filter(d => o === 'TODAS' || d.origem_cod === o);
-            // Extrai Famílias únicas
-            const fams = [...new Set(filtrados.map(d => JSON.stringify(d.categorias_familia)))].map(s => JSON.parse(s));
-            fams.forEach(item => { if(item) f.innerHTML += `<option value="${item.id}">${item.descricao}</option>`; });
+            fSelect.innerHTML = aSelect.innerHTML = '<option value="TODAS">TODAS</option>';
+            
+            // Filtra produtos vinculados a essa origem
+            const filtrados = masterData.filter(d => oValue === 'TODAS' || d.origem_cod === oValue);
+            
+            // Extrai IDs de famílias únicos
+            const idsUnicos = [...new Set(filtrados.map(d => d.familia_cod))];
+            
+            // Adiciona opções baseadas na tabela master de famílias
+            idsUnicos.forEach(id => {
+                const info = famsMaster.find(fam => fam.id === id);
+                if(info) fSelect.innerHTML += `<option value="${info.id}">${info.descricao}</option>`;
+                else if(id) fSelect.innerHTML += `<option value="${id}">${id}</option>`;
+            });
         }
         
         if(nivel === 'F') {
-            a.innerHTML = '<option value="TODAS">TODAS</option>';
-            const filtrados = masterData.filter(d => f.value === 'TODAS' || d.familia_cod === f.value);
-            // Extrai Agrupamentos únicos
-            const agrs = [...new Set(filtrados.map(d => JSON.stringify(d.categorias_agrupamento)))].map(s => JSON.parse(s));
-            agrs.forEach(item => { if(item) a.innerHTML += `<option value="${item.id}">${item.descricao}</option>`; });
+            aSelect.innerHTML = '<option value="TODAS">TODAS</option>';
+            const fValue = fSelect.value;
+            
+            // Filtra agrupamentos únicos dentro da família
+            const filtrados = masterData.filter(d => fValue === 'TODAS' || d.familia_cod === fValue);
+            const agrsUnicos = [...new Set(filtrados.map(d => d.agrupamento_cod))];
+            
+            agrsUnicos.forEach(id => {
+                if(id) aSelect.innerHTML += `<option value="${id}">${id}</option>`;
+            });
         }
     }
 
@@ -165,8 +190,8 @@
             const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
             const payload = rows.map(r => ({
                 codigo_produto: String(r['Produto'] || r['codigo'] || ''),
-                descricao: r['Descrição'] || r['descricao'] || '',
-                custo_total: parseFloat(r['Custo Total'] || r['custo'] || 0),
+                descricao: r['Descrição'] || r['descricao'] || r['Descrição '] || '',
+                custo_total: parseFloat(String(r['Custo Total'] || r['custo'] || 0).replace(',','.')),
                 data_referencia: date
             })).filter(x => x.codigo_produto.length > 2);
             
@@ -182,18 +207,16 @@
         const o = document.getElementById('selO').value, f = document.getElementById('selF').value, a = document.getElementById('selA').value;
         if(!start || !end) return alert("Defina o período!");
 
-        // Busca dados no banco cruzando com o dicionário
         let query = sb.from('historico_custos').select(`*, dicionario_produtos!inner(*)`).gte('data_referencia', start).lte('data_referencia', end);
         
         if(o !== 'TODAS') query = query.eq('dicionario_produtos.origem_cod', o);
         if(f !== 'TODAS') query = query.eq('dicionario_produtos.familia_cod', f);
         if(a !== 'TODAS') query = query.eq('dicionario_produtos.agrupamento_cod', a);
 
-        const { data } = await query.order('data_referencia', { ascending: true });
-        if(!data || data.length === 0) return alert("Nenhum dado encontrado.");
-        rawCostData = data;
+        const { data, error } = await query.order('data_referencia', { ascending: true });
+        if(error || !data || data.length === 0) return alert("Nenhum dado encontrado para os filtros selecionados.");
         
-        // Define se é afunilado (um item) ou categoria (vários itens)
+        rawCostData = data;
         const totalItems = [...new Set(data.map(d => d.codigo_produto))].length;
         isAfunilado = (totalItems === 1);
 
@@ -205,14 +228,13 @@
         rawCostData.forEach(d => { if(!grouped[d.codigo_produto]) grouped[d.codigo_produto] = []; grouped[d.codigo_produto].push(d); });
 
         let h = `<table><thead><tr><th>Cód</th><th>Descrição</th><th>Início R$</th><th>Fim R$</th><th>Min/Max</th><th>Var %</th><th>Status</th></tr></thead><tbody>`;
-        
         const chartData = { labels: [], datasets: [] };
-        const dataset = { label: 'Variação % por Item (1 por 1)', data: [], backgroundColor: [] };
+        const dataset = { label: 'Variação % por Item', data: [], backgroundColor: [] };
 
         Object.values(grouped).forEach(prods => {
             const ini = prods[0].custo_total, fim = prods[prods.length-1].custo_total;
             const custos = prods.map(p => p.custo_total), min = Math.min(...custos), max = Math.max(...custos);
-            const varPerc = ((fim - ini) / ini * 100);
+            const varPerc = ini === 0 ? 0 : ((fim - ini) / ini * 100);
             
             let stCl = "stable", stTx = "Estável";
             if(varPerc > 1.5) { stCl = "up"; stTx = "Alta"; } else if(varPerc < -1.5) { stCl = "down"; stTx = "Baixa"; }
@@ -223,7 +245,6 @@
                 <td style="font-weight:bold">${varPerc.toFixed(2)}%</td>
                 <td><span class="badge ${stCl}">${stTx}</span></td></tr>`;
             
-            // Prepara dados para o gráfico de barras (caso não afunilado)
             chartData.labels.push(prods[0].codigo_produto);
             dataset.data.push(varPerc);
             dataset.backgroundColor.push(varPerc > 0 ? '#ed1c24' : '#28a745');
@@ -232,27 +253,23 @@
         document.getElementById('tableWrapper').innerHTML = h + "</tbody></table>";
         document.getElementById('resultContent').classList.remove('hidden');
 
-        // Renderiza gráfico inicial
-        if(isAfunilado) {
-            renderSingleProductChart(Object.keys(grouped)[0]);
-        } else {
-            renderCategoryChart(chartData, dataset);
-        }
+        if(isAfunilado) renderSingleProductChart(Object.keys(grouped)[0]);
+        else renderCategoryChart(chartData, dataset);
     }
 
     function renderCategoryChart(data, dataset) {
-        document.getElementById('chartSubtitle').innerText = "Comparativo de Variação % por Item da Categoria";
+        document.getElementById('chartSubtitle').innerText = "Comparativo de Variação % da Categoria";
         if(chartInstance) chartInstance.destroy();
         chartInstance = new Chart(document.getElementById('historyChart').getContext('2d'), {
             type: 'bar',
             data: { labels: data.labels, datasets: [dataset] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => v.toFixed(1) + '%' } } } }
+            options: { responsive: true, maintainAspectRatio: false }
         });
     }
 
     function renderSingleProductChart(cod) {
         const f = rawCostData.filter(d => d.codigo_produto === cod);
-        document.getElementById('chartSubtitle').innerText = "Evolução Histórica do Item: " + f[0].descricao;
+        document.getElementById('chartSubtitle').innerText = "Histórico: " + f[0].descricao;
         
         if(chartInstance) chartInstance.destroy();
         chartInstance = new Chart(document.getElementById('historyChart').getContext('2d'), {
@@ -264,8 +281,7 @@
                     data: f.map(d => d.custo_total),
                     borderColor: '#ed1c24',
                     backgroundColor: 'rgba(237,28,36,0.05)',
-                    fill: true,
-                    tension: 0.2, pointRadius: 5
+                    fill: true, tension: 0.2
                 }]
             },
             options: { responsive: true, maintainAspectRatio: false }
