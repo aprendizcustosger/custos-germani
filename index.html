@@ -2,188 +2,284 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Sistema Germani - Gestão e Auditoria</title>
+    <title>Sistema Germani - Gestão de Custos</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --germani: #ed1c24; --bg: #f8f9fa; --text: #333; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; color: var(--text); }
-        .header { background: white; border-bottom: 4px solid var(--germani); padding: 15px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .container { max-width: 1300px; margin: 20px auto; padding: 0 20px; }
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
-        .tab-btn { padding: 12px 30px; border: none; background: #e0e0e0; cursor: pointer; font-weight: bold; border-radius: 6px; transition: 0.3s; }
-        .tab-btn.active { background: var(--germani); color: white; }
-        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 3px solid var(--germani); }
-        .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px; align-items: flex-end; }
-        label { display: block; font-size: 11px; font-weight: 700; color: #666; margin-bottom: 5px; text-transform: uppercase; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; }
-        .btn-main { background: var(--germani); color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-main:hover { background: #ba161c; transform: translateY(-1px); }
-        .btn-export { background: #28a745; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th { background: #f1f1f1; padding: 12px; text-align: left; font-size: 12px; border-bottom: 2px solid #ddd; }
-        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; cursor: pointer; }
-        tr:hover { background: #fff5f5; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; color: white; font-weight: bold; }
-        .up { background: var(--germani); } .down { background: #28a745; } .stable { background: #ffc107; color: #333; }
+        :root { --germani-red: #ed1c24; --germani-dark: #b21f2d; --bg: #f8f9fa; --text: #333; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; color: var(--text); }
+        .header { background: white; border-bottom: 4px solid var(--germani-red); padding: 15px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .logo-placeholder { font-size: 28px; font-weight: bold; color: var(--germani-red); letter-spacing: -1px; }
+        .logo-placeholder span { color: #555; font-weight: 300; }
+        .container { max-width: 1400px; margin: 20px auto; padding: 0 20px; }
+        .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
+        .tab-btn { padding: 12px 30px; border: none; background: #e0e0e0; cursor: pointer; font-weight: bold; border-radius: 6px; transition: 0.3s; color: #555; }
+        .tab-btn.active { background: var(--germani-red); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 25px; border-top: 3px solid var(--germani-red); }
+        .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; align-items: flex-end; }
+        label { display: block; font-size: 11px; font-weight: bold; color: #777; margin-bottom: 8px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; background: #fff; font-size: 14px; color: #333; }
+        .btn-main { background: var(--germani-red); color: white; border: none; padding: 13px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; width: 100%; text-transform: uppercase; font-size: 14px; }
+        .btn-main:hover { background: var(--germani-dark); transform: translateY(-2px); }
+        .btn-export { background: #28a745; margin-top: 10px; font-size: 12px; padding: 10px 20px; width: auto; }
+        .btn-export:hover { background: #218838; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 8px; overflow: hidden; }
+        th { background: #f4f4f4; color: #555; padding: 15px; font-size: 12px; text-transform: uppercase; text-align: left; border-bottom: 2px solid #eee; }
+        td { padding: 15px; border-bottom: 1px solid #eee; font-size: 14px; color: #444; }
+        tr:hover { background: #fffafa; cursor: pointer; }
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; color: white; text-transform: uppercase; display: inline-block; }
+        .up { background: var(--germani-red); }
+        .down { background: #28a745; }
+        .stable { background: #ffc107; color: #333; }
+        #chartWrapper { height: 400px; margin-bottom: 30px; position: relative; }
         .hidden { display: none; }
-        #chartContainer { height: 300px; margin-bottom: 20px; }
+        #upStatus { margin-top: 15px; padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; }
+        .status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <h2 style="margin:0; color:var(--germani)">GERMANI ALIMENTOS <span style="font-weight:300; color:#666">| Dashboard de Custos</span></h2>
+    <div class="logo-placeholder">GERMANI <span>ALIMENTOS</span></div>
+    <div style="font-size: 13px; color: #888; margin-top: 5px;">PAINEL ESTRATÉGICO DE CUSTOS</div>
 </div>
 
 <div class="container">
     <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('import')">📥 INSERIR DADOS</button>
-        <button class="tab-btn" onclick="switchTab('audit')">📊 AUDITORIA EM CASCATA</button>
+        <button class="tab-btn active" onclick="showTab('import')">📥 INSERIR DADOS</button>
+        <button class="tab-btn" onclick="showTab('report')">📊 AUDITORIA EM CASCATA</button>
     </div>
 
     <div id="tab-import" class="tab-content">
         <div class="card" style="max-width: 500px; margin: 0 auto;">
-            <h3>Importar Planilha Semanal</h3>
-            <label>Data da Planilha (Ex: Segunda-feira):</label>
-            <input type="date" id="importDate" style="margin-bottom:15px">
-            <label>Selecione o arquivo Excel:</label>
-            <input type="file" id="fileIn" accept=".xlsx" style="margin-bottom:20px">
-            <button class="btn-main" onclick="processUpload()" style="width:100%">SALVAR NO BANCO DE DADOS</button>
-            <div id="upStatus" style="text-align:center; margin-top:15px; font-weight:bold"></div>
+            <h3 style="margin-top:0">Upload Semanal de Planilha</h3>
+            <label>Data da Planilha (Segunda-feira):</label>
+            <input type="date" id="importDate" style="margin-bottom: 15px;">
+            <label>Selecione o arquivo Excel Cru (.xlsx):</label>
+            <input type="file" id="fileIn" accept=".xlsx" style="margin-bottom: 20px;">
+            <button class="btn-main" onclick="uploadData()">SALVAR NO BANCO DE DADOS</button>
+            <div id="upStatus"></div>
         </div>
     </div>
 
-    <div id="tab-audit" class="tab-content hidden">
+    <div id="tab-report" class="tab-content hidden">
         <div class="card">
             <div class="grid-filters">
-                <div><label>Início</label><input type="date" id="start"></div>
-                <div><label>Fim</label><input type="date" id="end"></div>
-                <div><label>1. Origem</label><select id="selO" onchange="cascataF()"><option value="TODAS">TODAS</option></select></div>
-                <div><label>2. Família</label><select id="selF"><option value="TODAS">TODAS</option></select></div>
-                <button class="btn-main" onclick="gerarRelatorio()">GERAR AUDITORIA</button>
+                <div>
+                    <label>Início do Período:</label>
+                    <input type="date" id="dtStart">
+                </div>
+                <div>
+                    <label>Fim do Período:</label>
+                    <input type="date" id="dtEnd">
+                </div>
+                <div>
+                    <label>1. Origem</label>
+                    <select id="selO" onchange="applyCascata('O')"><option value="TODAS">TODAS</option></select>
+                </div>
+                <div>
+                    <label>2. Família</label>
+                    <select id="selF" onchange="applyCascata('F')"><option value="TODAS">TODAS</option></select>
+                </div>
+                <div>
+                    <label>3. Agrupamento</label>
+                    <select id="selA"><option value="TODAS">TODAS</option></select>
+                </div>
+                <button class="btn-main" onclick="generateAuditory()">GERAR RELATÓRIO</button>
             </div>
         </div>
 
-        <div id="resultadoView" class="hidden">
+        <div id="resultContent" class="hidden">
             <div class="card">
-                <h3>Evolução: <span id="nomeProdGrafico" style="color:var(--germani)">Selecione um item abaixo</span></h3>
-                <div id="chartContainer"><canvas id="chartCustos"></canvas></div>
+                <h3>Análise Visual: <span id="chartSubtitle" style="color:var(--germani-red);">Comparativo da Categoria</span></h3>
+                <div id="chartWrapper"><canvas id="historyChart"></canvas></div>
             </div>
-            
+
             <div class="card">
-                <div style="display:flex; justify-content: space-between; align-items: center;">
-                    <input type="text" id="buscaRapida" placeholder="🔍 Pesquisar por nome ou código..." onkeyup="filtroTabela()" style="width:60%">
-                    <button class="btn-main btn-export" onclick="exportarExcel()">📗 EXPORTAR PARA EXCEL</button>
+                <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin:0">Relatório de Auditoria Detalhada</h3>
+                    <button class="btn-main btn-export" onclick="exportToExcel()">📗 EXPORTAR PARA EXCEL</button>
                 </div>
-                <div id="tabelaArea"></div>
+                <input type="text" id="searchTable" placeholder="🔍 Pesquisar por nome ou código..." onkeyup="filterTable()" style="margin-bottom:20px; border: 2px solid #eee;">
+                <div id="tableWrapper"></div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+    // Config Supabase
     const S_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
     const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
     const sb = supabase.createClient(S_URL, S_KEY);
-    let chartObj = null, dadosOriginais = [], dbF = [];
+    let masterData = [], rawCostData = [], chartInstance = null, isAfunilado = false;
 
-    // Setup inicial
+    // Carregar filtros ao abrir
     window.onload = async () => {
         const { data: origens } = await sb.from('categorias_origem').select('*');
-        const { data: familias } = await sb.from('categorias_familia').select('*');
-        dbF = familias || [];
         origens?.forEach(o => document.getElementById('selO').innerHTML += `<option value="${o.id}">${o.id} - ${o.descricao}</option>`);
+        
+        // Carrega o dicionário para a cascata
+        const { data: dict } = await sb.from('dicionario_produtos').select(`*, categorias_familia(id, descricao), categorias_agrupamento(id, descricao)`);
+        masterData = dict || [];
     };
 
-    function switchTab(t) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    function showTab(t) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('tab-'+t).classList.remove('hidden');
         event.target.classList.add('active');
     }
 
-    function cascataF() {
-        const codO = document.getElementById('selO').value;
-        const sF = document.getElementById('selF');
-        sF.innerHTML = '<option value="TODAS">TODAS</option>';
-        dbF.filter(f => codO === 'TODAS' || f.id.startsWith(codO)).forEach(f => sF.innerHTML += `<option value="${f.id}">${f.id} - ${f.descricao}</option>`);
+    function applyCascata(nivel) {
+        const o = document.getElementById('selO').value, f = document.getElementById('selF'), a = document.getElementById('selA');
+
+        if(nivel === 'O') {
+            f.innerHTML = a.innerHTML = '<option value="TODAS">TODAS</option>';
+            const filtrados = masterData.filter(d => o === 'TODAS' || d.origem_cod === o);
+            // Extrai Famílias únicas
+            const fams = [...new Set(filtrados.map(d => JSON.stringify(d.categorias_familia)))].map(s => JSON.parse(s));
+            fams.forEach(item => { if(item) f.innerHTML += `<option value="${item.id}">${item.descricao}</option>`; });
+        }
+        
+        if(nivel === 'F') {
+            a.innerHTML = '<option value="TODAS">TODAS</option>';
+            const filtrados = masterData.filter(d => f.value === 'TODAS' || d.familia_cod === f.value);
+            // Extrai Agrupamentos únicos
+            const agrs = [...new Set(filtrados.map(d => JSON.stringify(d.categorias_agrupamento)))].map(s => JSON.parse(s));
+            agrs.forEach(item => { if(item) a.innerHTML += `<option value="${item.id}">${item.descricao}</option>`; });
+        }
     }
 
-    async function processUpload() {
-        const f = document.getElementById('fileIn').files[0], d = document.getElementById('importDate').value;
-        if(!f || !d) return alert("Data e arquivo são obrigatórios!");
+    async function uploadData() {
+        const file = document.getElementById('fileIn').files[0], date = document.getElementById('importDate').value;
+        const status = document.getElementById('upStatus');
+        if(!file || !date) return alert("Preencha data e arquivo!");
+        status.innerText = "⏳ Processando...";
+        
         const reader = new FileReader();
         reader.onload = async (e) => {
-            const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
-            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            const payload = json.map(r => ({
-                codigo_produto: String(r['Produto'] || ''),
-                descricao: r['Descrição'] || '',
-                custo_total: parseFloat(r['Custo Total'] || 0),
-                data_referencia: d
-            })).filter(x => x.codigo_produto.length > 1);
-            const { error } = await sb.from('historico_custos').upsert(payload);
-            document.getElementById('upStatus').innerText = error ? "❌ Erro" : "✅ Sucesso: " + payload.length + " itens.";
+            const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            const payload = rows.map(r => ({
+                codigo_produto: String(r['Produto'] || r['codigo'] || ''),
+                descricao: r['Descrição'] || r['descricao'] || '',
+                custo_total: parseFloat(r['Custo Total'] || r['custo'] || 0),
+                data_referencia: date
+            })).filter(x => x.codigo_produto.length > 2);
+            
+            const { error } = await sb.from('historico_custos').upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
+            status.innerText = error ? "❌ Erro ao salvar." : "✅ " + payload.length + " itens salvos!";
+            status.className = error ? 'status-error' : 'status-success';
         };
-        reader.readAsArrayBuffer(f);
+        reader.readAsArrayBuffer(file);
     }
 
-    async function gerarRelatorio() {
-        const s = document.getElementById('start').value, e = document.getElementById('end').value;
-        const o = document.getElementById('selO').value, f = document.getElementById('selF').value;
-        if(!s || !e) return alert("Selecione o período!");
+    async function generateAuditory() {
+        const start = document.getElementById('dtStart').value, end = document.getElementById('dtEnd').value;
+        const o = document.getElementById('selO').value, f = document.getElementById('selF').value, a = document.getElementById('selA').value;
+        if(!start || !end) return alert("Defina o período!");
 
-        let q = sb.from('historico_custos').select(`*, dicionario_produtos!inner(*)`).gte('data_referencia', s).lte('data_referencia', e);
-        if(o !== 'TODAS') q = q.eq('dicionario_produtos.origem_cod', o);
-        if(f !== 'TODAS') q = q.eq('dicionario_produtos.familia_cod', f);
+        // Busca dados no banco cruzando com o dicionário
+        let query = sb.from('historico_custos').select(`*, dicionario_produtos!inner(*)`).gte('data_referencia', start).lte('data_referencia', end);
+        
+        if(o !== 'TODAS') query = query.eq('dicionario_produtos.origem_cod', o);
+        if(f !== 'TODAS') query = query.eq('dicionario_produtos.familia_cod', f);
+        if(a !== 'TODAS') query = query.eq('dicionario_produtos.agrupamento_cod', a);
 
-        const { data } = await q.order('data_referencia', { ascending: true });
-        dadosOriginais = data || [];
-        renderizarTabela();
+        const { data } = await query.order('data_referencia', { ascending: true });
+        if(!data || data.length === 0) return alert("Nenhum dado encontrado.");
+        rawCostData = data;
+        
+        // Define se é afunilado (um item) ou categoria (vários itens)
+        const totalItems = [...new Set(data.map(d => d.codigo_produto))].length;
+        isAfunilado = (totalItems === 1);
+
+        renderAuditoryTable();
     }
 
-    function renderizarTabela() {
-        if(dadosOriginais.length === 0) return alert("Nenhum dado encontrado.");
-        document.getElementById('resultadoView').classList.remove('hidden');
+    function renderAuditoryTable() {
         const grouped = {};
-        dadosOriginais.forEach(d => { if(!grouped[d.codigo_produto]) grouped[d.codigo_produto] = []; grouped[d.codigo_produto].push(d); });
+        rawCostData.forEach(d => { if(!grouped[d.codigo_produto]) grouped[d.codigo_produto] = []; grouped[d.codigo_produto].push(d); });
 
-        let h = `<table id="tabelaDados"><thead><tr><th>Cód</th><th>Descrição</th><th>Início (R$)</th><th>Fim (R$)</th><th>Var %</th><th>Status</th></tr></thead><tbody>`;
-        Object.keys(grouped).forEach(cod => {
-            const p = grouped[cod], ini = p[0].custo_total, fim = p[p.length-1].custo_total;
-            const v = ((fim - ini) / ini * 100);
-            const st = v > 0.5 ? 'up' : (v < -0.5 ? 'down' : 'stable');
-            h += `<tr onclick="atualizarGrafico('${cod}')">
-                <td>${cod}</td><td>${p[0].descricao}</td><td>${ini.toFixed(2)}</td><td>${fim.toFixed(2)}</td>
-                <td>${v.toFixed(2)}%</td><td><span class="badge ${st}">${st.toUpperCase()}</span></td></tr>`;
+        let h = `<table><thead><tr><th>Cód</th><th>Descrição</th><th>Início R$</th><th>Fim R$</th><th>Min/Max</th><th>Var %</th><th>Status</th></tr></thead><tbody>`;
+        
+        const chartData = { labels: [], datasets: [] };
+        const dataset = { label: 'Variação % por Item (1 por 1)', data: [], backgroundColor: [] };
+
+        Object.values(grouped).forEach(prods => {
+            const ini = prods[0].custo_total, fim = prods[prods.length-1].custo_total;
+            const custos = prods.map(p => p.custo_total), min = Math.min(...custos), max = Math.max(...custos);
+            const varPerc = ((fim - ini) / ini * 100);
+            
+            let stCl = "stable", stTx = "Estável";
+            if(varPerc > 1.5) { stCl = "up"; stTx = "Alta"; } else if(varPerc < -1.5) { stCl = "down"; stTx = "Baixa"; }
+
+            h += `<tr onclick="renderSingleProductChart('${prods[0].codigo_produto}')">
+                <td><b>${prods[0].codigo_produto}</b></td><td>${prods[0].descricao}</td><td>${ini.toFixed(2)}</td><td>${fim.toFixed(2)}</td>
+                <td style="font-size:11px; color:#888">Min: ${min.toFixed(2)}<br>Max: ${max.toFixed(2)}</td>
+                <td style="font-weight:bold">${varPerc.toFixed(2)}%</td>
+                <td><span class="badge ${stCl}">${stTx}</span></td></tr>`;
+            
+            // Prepara dados para o gráfico de barras (caso não afunilado)
+            chartData.labels.push(prods[0].codigo_produto);
+            dataset.data.push(varPerc);
+            dataset.backgroundColor.push(varPerc > 0 ? '#ed1c24' : '#28a745');
         });
-        document.getElementById('tabelaArea').innerHTML = h + "</tbody></table>";
-        atualizarGrafico(Object.keys(grouped)[0]);
+
+        document.getElementById('tableWrapper').innerHTML = h + "</tbody></table>";
+        document.getElementById('resultContent').classList.remove('hidden');
+
+        // Renderiza gráfico inicial
+        if(isAfunilado) {
+            renderSingleProductChart(Object.keys(grouped)[0]);
+        } else {
+            renderCategoryChart(chartData, dataset);
+        }
     }
 
-    function atualizarGrafico(cod) {
-        const f = dadosOriginais.filter(d => d.codigo_produto === cod);
-        document.getElementById('nomeProdGrafico').innerText = f[0].descricao;
-        if(chartObj) chartObj.destroy();
-        chartObj = new Chart(document.getElementById('chartCustos'), {
+    function renderCategoryChart(data, dataset) {
+        document.getElementById('chartSubtitle').innerText = "Comparativo de Variação % por Item da Categoria";
+        if(chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(document.getElementById('historyChart').getContext('2d'), {
+            type: 'bar',
+            data: { labels: data.labels, datasets: [dataset] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => v.toFixed(1) + '%' } } } }
+        });
+    }
+
+    function renderSingleProductChart(cod) {
+        const f = rawCostData.filter(d => d.codigo_produto === cod);
+        document.getElementById('chartSubtitle').innerText = "Evolução Histórica do Item: " + f[0].descricao;
+        
+        if(chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(document.getElementById('historyChart').getContext('2d'), {
             type: 'line',
-            data: { labels: f.map(d => d.data_referencia), datasets: [{ label: 'Custo R$', data: f.map(d => d.custo_total), borderColor: '#ed1c24', tension: 0.1, fill: true, backgroundColor: 'rgba(237,28,36,0.1)' }] },
+            data: {
+                labels: f.map(d => d.data_referencia),
+                datasets: [{
+                    label: 'Custo Total R$',
+                    data: f.map(d => d.custo_total),
+                    borderColor: '#ed1c24',
+                    backgroundColor: 'rgba(237,28,36,0.05)',
+                    fill: true,
+                    tension: 0.2, pointRadius: 5
+                }]
+            },
             options: { responsive: true, maintainAspectRatio: false }
         });
     }
 
-    function filtroTabela() {
-        const val = document.getElementById('buscaRapida').value.toUpperCase();
-        const rows = document.querySelectorAll("#tabelaDados tbody tr");
-        rows.forEach(r => r.style.display = r.innerText.toUpperCase().includes(val) ? "" : "none");
+    function filterTable() {
+        const val = document.getElementById('searchTable').value.toUpperCase();
+        const rows = document.querySelector("#tableWrapper table tbody").rows;
+        for (let r of rows) r.style.display = r.innerText.toUpperCase().includes(val) ? "" : "none";
     }
 
-    function exportarExcel() {
-        const table = document.getElementById("tabelaDados");
-        const wb = XLSX.utils.table_to_book(table);
-        XLSX.writeFile(wb, "Auditoria_Germani_Custos.xlsx");
+    function exportToExcel() {
+        XLSX.writeFile(XLSX.utils.table_to_book(document.getElementById("tableWrapper")), "Auditoria_Germani.xlsx");
     }
 </script>
 </body>
