@@ -2,62 +2,84 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Auditoria Germani - Filtro em Cascata</title>
+    <title>Sistema Germani - Gestão e Auditoria</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --germani-red: #ed1c24; --bg: #f4f4f4; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; }
-        .header { background: white; border-bottom: 4px solid var(--germani-red); padding: 15px; text-align: center; }
+        :root { --germani: #ed1c24; --bg: #f8f9fa; --text: #333; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; color: var(--text); }
+        .header { background: white; border-bottom: 4px solid var(--germani); padding: 15px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .container { max-width: 1300px; margin: 20px auto; padding: 0 20px; }
-        .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; border-top: 3px solid var(--germani-red); }
-        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; align-items: flex-end; }
-        label { display: block; font-size: 11px; font-weight: bold; color: #666; margin-bottom: 5px; }
-        select, input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-        .btn { background: var(--germani-red); color: white; border: none; padding: 11px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
+        .tab-btn { padding: 12px 30px; border: none; background: #e0e0e0; cursor: pointer; font-weight: bold; border-radius: 6px; transition: 0.3s; }
+        .tab-btn.active { background: var(--germani); color: white; }
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 3px solid var(--germani); }
+        .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px; align-items: flex-end; }
+        label { display: block; font-size: 11px; font-weight: 700; color: #666; margin-bottom: 5px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; }
+        .btn-main { background: var(--germani); color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-main:hover { background: #ba161c; transform: translateY(-1px); }
+        .btn-export { background: #28a745; margin-top: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th { background: #eee; padding: 12px; text-align: left; font-size: 12px; }
-        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+        th { background: #f1f1f1; padding: 12px; text-align: left; font-size: 12px; border-bottom: 2px solid #ddd; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; cursor: pointer; }
+        tr:hover { background: #fff5f5; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; color: white; font-weight: bold; }
+        .up { background: var(--germani); } .down { background: #28a745; } .stable { background: #ffc107; color: #333; }
         .hidden { display: none; }
+        #chartContainer { height: 300px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <strong style="color:var(--germani-red); font-size: 24px;">GERMANI ALIMENTOS</strong>
+    <h2 style="margin:0; color:var(--germani)">GERMANI ALIMENTOS <span style="font-weight:300; color:#666">| Dashboard de Custos</span></h2>
 </div>
 
 <div class="container">
-    <div class="card">
-        <div class="filter-grid">
-            <div><label>DATA INÍCIO</label><input type="date" id="dtStart"></div>
-            <div><label>DATA FIM</label><input type="date" id="dtEnd"></div>
-            <div>
-                <label>1. ORIGEM</label>
-                <select id="selOrigem" onchange="filterCascata('familia')">
-                    <option value="TODAS">TODAS</option>
-                </select>
-            </div>
-            <div>
-                <label>2. FAMÍLIA</label>
-                <select id="selFamilia" onchange="filterCascata('agrupamento')">
-                    <option value="TODAS">TODAS</option>
-                </select>
-            </div>
-            <div>
-                <label>3. AGRUPAMENTO</label>
-                <select id="selAgrupamento">
-                    <option value="TODAS">TODAS</option>
-                </select>
-            </div>
-            <button class="btn" onclick="executarAuditoria()">GERAR RELATÓRIO</button>
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('import')">📥 INSERIR DADOS</button>
+        <button class="tab-btn" onclick="switchTab('audit')">📊 AUDITORIA EM CASCATA</button>
+    </div>
+
+    <div id="tab-import" class="tab-content">
+        <div class="card" style="max-width: 500px; margin: 0 auto;">
+            <h3>Importar Planilha Semanal</h3>
+            <label>Data da Planilha (Ex: Segunda-feira):</label>
+            <input type="date" id="importDate" style="margin-bottom:15px">
+            <label>Selecione o arquivo Excel:</label>
+            <input type="file" id="fileIn" accept=".xlsx" style="margin-bottom:20px">
+            <button class="btn-main" onclick="processUpload()" style="width:100%">SALVAR NO BANCO DE DADOS</button>
+            <div id="upStatus" style="text-align:center; margin-top:15px; font-weight:bold"></div>
         </div>
     </div>
 
-    <div id="painel" class="hidden">
-        <div class="card"><canvas id="grafico" height="100"></canvas></div>
-        <div class="card" id="tabelaDados"></div>
+    <div id="tab-audit" class="tab-content hidden">
+        <div class="card">
+            <div class="grid-filters">
+                <div><label>Início</label><input type="date" id="start"></div>
+                <div><label>Fim</label><input type="date" id="end"></div>
+                <div><label>1. Origem</label><select id="selO" onchange="cascataF()"><option value="TODAS">TODAS</option></select></div>
+                <div><label>2. Família</label><select id="selF"><option value="TODAS">TODAS</option></select></div>
+                <button class="btn-main" onclick="gerarRelatorio()">GERAR AUDITORIA</button>
+            </div>
+        </div>
+
+        <div id="resultadoView" class="hidden">
+            <div class="card">
+                <h3>Evolução: <span id="nomeProdGrafico" style="color:var(--germani)">Selecione um item abaixo</span></h3>
+                <div id="chartContainer"><canvas id="chartCustos"></canvas></div>
+            </div>
+            
+            <div class="card">
+                <div style="display:flex; justify-content: space-between; align-items: center;">
+                    <input type="text" id="buscaRapida" placeholder="🔍 Pesquisar por nome ou código..." onkeyup="filtroTabela()" style="width:60%">
+                    <button class="btn-main btn-export" onclick="exportarExcel()">📗 EXPORTAR PARA EXCEL</button>
+                </div>
+                <div id="tabelaArea"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -65,70 +87,103 @@
     const S_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
     const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
     const sb = supabase.createClient(S_URL, S_KEY);
-    
-    let db_origens = [], db_familias = [], db_agrupamentos = [];
+    let chartObj = null, dadosOriginais = [], dbF = [];
 
-    // Carregar TODOS os dados de hierarquia ao abrir
+    // Setup inicial
     window.onload = async () => {
-        const resO = await sb.from('categorias_origem').select('*');
-        const resF = await sb.from('categorias_familia').select('*');
-        const resA = await sb.from('categorias_agrupamento').select('*');
-        
-        db_origens = resO.data || [];
-        db_familias = resF.data || [];
-        db_agrupamentos = resA.data || [];
-
-        popularSelect('selOrigem', db_origens);
+        const { data: origens } = await sb.from('categorias_origem').select('*');
+        const { data: familias } = await sb.from('categorias_familia').select('*');
+        dbF = familias || [];
+        origens?.forEach(o => document.getElementById('selO').innerHTML += `<option value="${o.id}">${o.id} - ${o.descricao}</option>`);
     };
 
-    function popularSelect(id, lista) {
-        const s = document.getElementById(id);
-        s.innerHTML = '<option value="TODAS">TODAS</option>';
-        lista.forEach(item => s.innerHTML += `<option value="${item.id}">${item.id} - ${item.descricao}</option>`);
+    function switchTab(t) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-'+t).classList.remove('hidden');
+        event.target.classList.add('active');
     }
 
-    // A MÁGICA DA CASCATA
-    function filterCascata(nivel) {
-        if (nivel === 'familia') {
-            const codOrigem = document.getElementById('selOrigem').value;
-            // Filtra famílias que começam com o código da origem (ex: 425 -> 42501)
-            const filtradas = codOrigem === 'TODAS' ? db_familias : db_familias.filter(f => f.id.startsWith(codOrigem));
-            popularSelect('selFamilia', filtradas);
-            popularSelect('selAgrupamento', []); // Reseta o próximo nível
-        } 
-        else if (nivel === 'agrupamento') {
-            const codFamilia = document.getElementById('selFamilia').value;
-            // Aqui a lógica depende de como você vinculou no dicionário. 
-            // Para simplificar, mostramos todos ou filtramos se houver regra de ID.
-            popularSelect('selAgrupamento', db_agrupamentos);
-        }
+    function cascataF() {
+        const codO = document.getElementById('selO').value;
+        const sF = document.getElementById('selF');
+        sF.innerHTML = '<option value="TODAS">TODAS</option>';
+        dbF.filter(f => codO === 'TODAS' || f.id.startsWith(codO)).forEach(f => sF.innerHTML += `<option value="${f.id}">${f.id} - ${f.descricao}</option>`);
     }
 
-    async function executarAuditoria() {
-        const start = document.getElementById('dtStart').value;
-        const end = document.getElementById('dtEnd').value;
-        const origem = document.getElementById('selOrigem').value;
-        const familia = document.getElementById('selFamilia').value;
-        const agrup = document.getElementById('selAgrupamento').value;
+    async function processUpload() {
+        const f = document.getElementById('fileIn').files[0], d = document.getElementById('importDate').value;
+        if(!f || !d) return alert("Data e arquivo são obrigatórios!");
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            const payload = json.map(r => ({
+                codigo_produto: String(r['Produto'] || ''),
+                descricao: r['Descrição'] || '',
+                custo_total: parseFloat(r['Custo Total'] || 0),
+                data_referencia: d
+            })).filter(x => x.codigo_produto.length > 1);
+            const { error } = await sb.from('historico_custos').upsert(payload);
+            document.getElementById('upStatus').innerText = error ? "❌ Erro" : "✅ Sucesso: " + payload.length + " itens.";
+        };
+        reader.readAsArrayBuffer(f);
+    }
 
-        let q = sb.from('historico_custos').select(`*, dicionario_produtos!inner(*)`).gte('data_referencia', start).lte('data_referencia', end);
-        
-        if(origem !== 'TODAS') q = q.eq('dicionario_produtos.origem_cod', origem);
-        if(familia !== 'TODAS') q = q.eq('dicionario_produtos.familia_cod', familia);
-        if(agrup !== 'TODAS') q = q.eq('dicionario_produtos.agrupamento_cod', agrup);
+    async function gerarRelatorio() {
+        const s = document.getElementById('start').value, e = document.getElementById('end').value;
+        const o = document.getElementById('selO').value, f = document.getElementById('selF').value;
+        if(!s || !e) return alert("Selecione o período!");
+
+        let q = sb.from('historico_custos').select(`*, dicionario_produtos!inner(*)`).gte('data_referencia', s).lte('data_referencia', e);
+        if(o !== 'TODAS') q = q.eq('dicionario_produtos.origem_cod', o);
+        if(f !== 'TODAS') q = q.eq('dicionario_produtos.familia_cod', f);
 
         const { data } = await q.order('data_referencia', { ascending: true });
-        if(!data || data.length === 0) return alert("Sem dados.");
-
-        renderizarTabela(data);
+        dadosOriginais = data || [];
+        renderizarTabela();
     }
 
-    function renderizarTabela(dados) {
-        // Lógica de agrupamento por produto para calcular Var %
-        document.getElementById('painel').classList.remove('hidden');
-        let h = `<table><tr><th>Cód</th><th>Produto</th><th>Inicial</th><th>Atual</th><th>Var %</th></tr>`;
-        // ... (resto da lógica de cálculo que já usamos)
-        document.getElementById('tabelaDados').innerHTML = h + "</table>";
+    function renderizarTabela() {
+        if(dadosOriginais.length === 0) return alert("Nenhum dado encontrado.");
+        document.getElementById('resultadoView').classList.remove('hidden');
+        const grouped = {};
+        dadosOriginais.forEach(d => { if(!grouped[d.codigo_produto]) grouped[d.codigo_produto] = []; grouped[d.codigo_produto].push(d); });
+
+        let h = `<table id="tabelaDados"><thead><tr><th>Cód</th><th>Descrição</th><th>Início (R$)</th><th>Fim (R$)</th><th>Var %</th><th>Status</th></tr></thead><tbody>`;
+        Object.keys(grouped).forEach(cod => {
+            const p = grouped[cod], ini = p[0].custo_total, fim = p[p.length-1].custo_total;
+            const v = ((fim - ini) / ini * 100);
+            const st = v > 0.5 ? 'up' : (v < -0.5 ? 'down' : 'stable');
+            h += `<tr onclick="atualizarGrafico('${cod}')">
+                <td>${cod}</td><td>${p[0].descricao}</td><td>${ini.toFixed(2)}</td><td>${fim.toFixed(2)}</td>
+                <td>${v.toFixed(2)}%</td><td><span class="badge ${st}">${st.toUpperCase()}</span></td></tr>`;
+        });
+        document.getElementById('tabelaArea').innerHTML = h + "</tbody></table>";
+        atualizarGrafico(Object.keys(grouped)[0]);
+    }
+
+    function atualizarGrafico(cod) {
+        const f = dadosOriginais.filter(d => d.codigo_produto === cod);
+        document.getElementById('nomeProdGrafico').innerText = f[0].descricao;
+        if(chartObj) chartObj.destroy();
+        chartObj = new Chart(document.getElementById('chartCustos'), {
+            type: 'line',
+            data: { labels: f.map(d => d.data_referencia), datasets: [{ label: 'Custo R$', data: f.map(d => d.custo_total), borderColor: '#ed1c24', tension: 0.1, fill: true, backgroundColor: 'rgba(237,28,36,0.1)' }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function filtroTabela() {
+        const val = document.getElementById('buscaRapida').value.toUpperCase();
+        const rows = document.querySelectorAll("#tabelaDados tbody tr");
+        rows.forEach(r => r.style.display = r.innerText.toUpperCase().includes(val) ? "" : "none");
+    }
+
+    function exportarExcel() {
+        const table = document.getElementById("tabelaDados");
+        const wb = XLSX.utils.table_to_book(table);
+        XLSX.writeFile(wb, "Auditoria_Germani_Custos.xlsx");
     }
 </script>
 </body>
