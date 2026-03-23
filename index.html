@@ -2,186 +2,247 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard Custos - Germani Alimentos</title>
+    <title>Sistema de Custos - Germani Alimentos</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --primary: #003366; --secondary: #f0f2f5; --success: #28a745; --danger: #dc3545; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--secondary); margin: 0; padding: 20px; }
-        .container { max-width: 1100px; margin: 0 auto; }
-        .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ccc; }
-        .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: none; font-weight: bold; font-size: 16px; }
-        .tab-btn.active { border-bottom: 3px solid var(--primary); color: var(--primary); }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: var(--primary); color: white; cursor: pointer; border: none; transition: 0.3s; font-weight: bold; }
-        button:hover { background: #002244; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 14px; }
-        th { background-color: var(--primary); color: white; }
-        .up { color: var(--danger); font-weight: bold; }
-        .down { color: var(--success); font-weight: bold; }
-        #chartContainer { height: 300px; margin-top: 20px; }
+        :root { --germani-red: #ed1c24; --germani-dark: #8b0000; --bg: #f4f4f4; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; }
+        
+        /* Header Estilo Germani */
+        .header { background: white; border-bottom: 5px solid var(--germani-red); padding: 15px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .logo-placeholder { font-size: 28px; font-weight: bold; color: var(--germani-red); letter-spacing: -1px; }
+        .logo-placeholder span { color: #333; }
+
+        .container { max-width: 1300px; margin: 20px auto; padding: 0 20px; }
+        
+        .nav-tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { padding: 12px 25px; border: none; background: white; cursor: pointer; font-weight: bold; border-radius: 50px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.3s; color: #555; }
+        .tab-btn.active { background: var(--germani-red); color: white; }
+
+        .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 3px solid var(--germani-red); }
+        
+        .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: flex-end; }
+        label { display: block; font-size: 12px; font-weight: bold; color: #666; margin-bottom: 5px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        
+        .btn-main { background: var(--germani-red); color: white; border: none; padding: 11px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-main:hover { background: var(--germani-dark); }
+
+        /* Tabela e Badges */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #f8f9fa; color: #333; padding: 12px; font-size: 13px; text-align: left; border-bottom: 2px solid #eee; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        
+        .badge { padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; text-align: center; display: inline-block; min-width: 70px; }
+        .bg-red { background: var(--germani-red); }
+        .bg-yellow { background: #ffc107; color: #333; }
+        .bg-green { background: #28a745; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 5px solid var(--germani-red); }
+        .stat-card small { font-size: 11px; color: #888; text-transform: uppercase; }
+        .stat-card div { font-size: 18px; font-weight: bold; color: #333; margin-top: 5px; }
+
+        #chartView { height: 400px; width: 100%; }
         .hidden { display: none; }
     </style>
 </head>
 <body>
 
+<div class="header">
+    <div class="logo-placeholder">GERMANI <span>ALIMENTOS</span></div>
+    <div style="font-size: 12px; color: #666; margin-top: 5px;">SISTEMA DE GESTÃO DE CUSTOS SEMANAIS</div>
+</div>
+
 <div class="container">
     <div class="nav-tabs">
-        <button class="tab-btn active" onclick="showTab('import')">📥 Importar Dados</button>
-        <button class="tab-btn" onclick="showTab('report')">📊 Relatórios e Gráficos</button>
+        <button class="tab-btn active" onclick="showTab('import')">IMPORTAR PLANILHAS</button>
+        <button class="tab-btn" onclick="showTab('report')">AUDITORIA E HISTÓRICO</button>
     </div>
 
     <div id="tab-import" class="tab-content">
-        <div class="card">
-            <h2>Enviar Nova Planilha Semanal</h2>
-            <div class="grid">
-                <div>
-                    <label>Data de Referência:</label>
-                    <input type="date" id="importDate">
-                </div>
-                <div>
-                    <label>Selecione o Arquivo (.xlsx):</label>
-                    <input type="file" id="fileInput" accept=".xlsx">
-                </div>
-            </div>
-            <button onclick="uploadData()" style="margin-top: 20px;">Processar e Salvar no Banco</button>
-            <div id="importStatus" style="margin-top: 15px; text-align: center;"></div>
+        <div class="card" style="max-width: 600px; margin: 0 auto;">
+            <h3 style="margin-top:0">Upload de Dados</h3>
+            <label>Data da Planilha:</label>
+            <input type="date" id="importDate" style="margin-bottom: 15px;">
+            <label>Arquivo Excel:</label>
+            <input type="file" id="fileInput" accept=".xlsx" style="margin-bottom: 20px;">
+            <button class="btn-main" onclick="uploadData()" style="width:100%">SALVAR NO SISTEMA</button>
+            <div id="status"></div>
         </div>
     </div>
 
     <div id="tab-report" class="tab-content hidden">
         <div class="card">
-            <h2>Comparativo de Custos</h2>
-            <div class="grid" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="grid-filters">
                 <div>
-                    <label>Semana Base (Antiga):</label>
-                    <input type="date" id="dateA">
+                    <label>Período Inicial:</label>
+                    <input type="date" id="startDate">
                 </div>
                 <div>
-                    <label>Semana Nova (Atual):</label>
-                    <input type="date" id="dateB">
+                    <label>Período Final:</label>
+                    <input type="date" id="endDate">
                 </div>
-                <div style="display: flex; align-items: flex-end;">
-                    <button onclick="compareCosts()">Comparar Custos</button>
+                <div>
+                    <label>Família:</label>
+                    <select id="filterFamilia">
+                        <option value="TODAS">TODAS AS FAMÍLIAS</option>
+                        <option value="MC09">MC09 - MISTURAS</option>
+                    </select>
                 </div>
+                <button class="btn-main" onclick="generateFullReport()">GERAR RELATÓRIO</button>
             </div>
         </div>
 
-        <div id="resultArea" class="hidden">
+        <div id="reportContent" class="hidden">
+            <div class="stats-grid" id="statsHeader"></div>
+            
             <div class="card">
-                <h3>Variação por Produto</h3>
-                <div id="chartContainer">
-                    <canvas id="costChart"></canvas>
+                <h3>Variação Histórica do Item</h3>
+                <div id="chartView">
+                    <canvas id="historyChart"></canvas>
                 </div>
-                <div id="tableContainer"></div>
+            </div>
+
+            <div class="card">
+                <h3>Planilha de Auditoria Detalhada</h3>
+                <input type="text" id="searchTable" placeholder="Filtrar por nome ou código..." onkeyup="filterTableManual()" style="margin-bottom:15px; border: 2px solid #eee;">
+                <div id="tableWrapper"></div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
-    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    let myChart = null;
+    // Configurações Supabase
+    const S_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
+    const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
+    const supabaseClient = supabase.createClient(S_URL, S_KEY);
+    let masterData = [];
+    let chartInstance = null;
 
-    function showTab(tab) {
+    function showTab(t) {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById('tab-' + tab).classList.remove('hidden');
+        document.getElementById('tab-'+t).classList.remove('hidden');
         event.target.classList.add('active');
     }
 
     async function uploadData() {
         const file = document.getElementById('fileInput').files[0];
         const date = document.getElementById('importDate').value;
-        const status = document.getElementById('importStatus');
-        if(!file || !date) return alert("Preencha data e arquivo!");
+        if(!file || !date) return alert("Selecione data e arquivo.");
 
-        status.innerHTML = "Limpando e enviando...";
         const reader = new FileReader();
         reader.onload = async (e) => {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(sheet);
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-            const toInsert = rows.map(r => ({
-                codigo_produto: String(r['Produto'] || ''),
-                descricao: r['Descrição'] || '',
+            const cleanData = rows.map(r => ({
+                codigo_produto: String(r['Produto']),
+                descricao: r['Descrição'],
                 custo_total: parseFloat(r['Custo Total'] || 0),
                 data_referencia: date
-            })).filter(i => i.codigo_produto);
+            })).filter(x => x.codigo_produto && !isNaN(x.custo_total));
 
-            const { error } = await client.from('historico_custos').insert(toInsert);
-            status.innerHTML = error ? "Erro: " + error.message : "✅ " + toInsert.length + " itens salvos!";
+            const { error } = await supabaseClient.from('historico_custos').upsert(cleanData);
+            alert(error ? "Erro: " + error.message : "✅ Dados salvos com sucesso!");
         };
         reader.readAsArrayBuffer(file);
     }
 
-    async function compareCosts() {
-        const dateA = document.getElementById('dateA').value;
-        const dateB = document.getElementById('dateB').value;
-        if(!dateA || !dateB) return alert("Selecione as duas datas!");
+    async function generateFullReport() {
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        if(!start || !end) return alert("Defina o período.");
 
-        const { data: costs } = await client.from('historico_custos')
+        const { data, error } = await supabaseClient.from('historico_custos')
             .select('*')
-            .in('data_referencia', [dateA, dateB]);
+            .gte('data_referencia', start)
+            .lte('data_referencia', end)
+            .order('data_referencia', { ascending: true });
 
-        processComparison(costs, dateA, dateB);
+        if(!data || data.length === 0) return alert("Nenhum dado encontrado.");
+        masterData = data;
+        processAuditory();
     }
 
-    function processComparison(data, dateA, dateB) {
-        const produtos = {};
-        data.forEach(item => {
-            if(!produtos[item.codigo_produto]) {
-                produtos[item.codigo_produto] = { desc: item.descricao, valA: 0, valB: 0 };
-            }
-            if(item.data_referencia === dateA) produtos[item.codigo_produto].valA = item.custo_total;
-            if(item.data_referencia === dateB) produtos[item.codigo_produto].valB = item.custo_total;
+    function processAuditory() {
+        const agrp = {};
+        masterData.forEach(d => {
+            if(!agrp[d.codigo_produto]) agrp[d.codigo_produto] = [];
+            agrp[d.codigo_produto].push(d);
         });
 
-        let html = `<table><tr><th>Cód</th><th>Descrição</th><th>${dateA}</th><th>${dateB}</th><th>Var %</th></tr>`;
-        const labels = [];
-        const diffs = [];
+        let tableHtml = `<table><thead><tr>
+            <th>CÓD</th><th>DESCRIÇÃO</th><th>INICIAL</th><th>ATUAL</th><th>MÍNIMA (DATA)</th><th>MÁXIMA (DATA)</th><th>VAR %</th><th>STATUS</th>
+        </tr></thead><tbody>`;
 
-        Object.keys(produtos).forEach(cod => {
-            const p = produtos[cod];
-            const varPerc = p.valA > 0 ? ((p.valB - p.valA) / p.valA * 100).toFixed(2) : 0;
-            const classe = varPerc > 0 ? 'up' : (varPerc < 0 ? 'down' : '');
-            
-            html += `<tr><td>${cod}</td><td>${p.desc}</td><td>R$ ${p.valA}</td><td>R$ ${p.valB}</td><td class="${classe}">${varPerc}%</td></tr>`;
-            
-            if(Math.abs(varPerc) > 0) {
-                labels.push(p.desc.substring(0,15));
-                diffs.push(varPerc);
-            }
+        const list = Object.values(agrp).map(prods => {
+            const inicial = prods[0].custo_total;
+            const atual = prods[prods.length - 1].custo_total;
+            const custos = prods.map(p => p.custo_total);
+            const min = Math.min(...custos);
+            const max = Math.max(...custos);
+            const dataMin = prods.find(p => p.custo_total === min).data_referencia;
+            const dataMax = prods.find(p => p.custo_total === max).data_referencia;
+            const varTotal = ((atual - inicial) / inicial * 100);
+
+            let statusClass = "bg-yellow", statusTxt = "ESTÁVEL";
+            if(varTotal > 2) { statusClass = "bg-red"; statusTxt = "ALTA"; }
+            else if(varTotal < -2) { statusClass = "bg-green"; statusTxt = "BAIXA"; }
+
+            tableHtml += `<tr onclick="renderProductChart('${prods[0].codigo_produto}')" style="cursor:pointer">
+                <td>${prods[0].codigo_produto}</td>
+                <td>${prods[0].descricao}</td>
+                <td>R$ ${inicial.toFixed(2)}</td>
+                <td>R$ ${atual.toFixed(2)}</td>
+                <td style="font-size:11px">R$ ${min.toFixed(2)} <br>(${dataMin})</td>
+                <td style="font-size:11px">R$ ${max.toFixed(2)} <br>(${dataMax})</td>
+                <td class="${varTotal > 0 ? 'bg-red-text' : 'bg-green-text'}">${varTotal.toFixed(2)}%</td>
+                <td><span class="badge ${statusClass}">${statusTxt} (${varTotal.toFixed(1)}%)</span></td>
+            </tr>`;
         });
 
-        document.getElementById('tableContainer').innerHTML = html + "</table>";
-        document.getElementById('resultArea').classList.remove('hidden');
-        renderChart(labels, diffs);
+        document.getElementById('tableWrapper').innerHTML = tableHtml + "</tbody></table>";
+        document.getElementById('reportContent').classList.remove('hidden');
+        renderProductChart(Object.keys(agrp)[0]); // Inicia gráfico com o 1º item
     }
 
-    function renderChart(labels, values) {
-        if(myChart) myChart.destroy();
-        const ctx = document.getElementById('costChart').getContext('2d');
-        myChart = new Chart(ctx, {
-            type: 'bar',
+    function renderProductChart(cod) {
+        const filtered = masterData.filter(d => d.codigo_produto === cod);
+        const labels = filtered.map(d => d.data_referencia);
+        const values = filtered.map(d => d.custo_total);
+
+        if(chartInstance) chartInstance.destroy();
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Variação % de Custo',
+                    label: filtered[0].descricao,
                     data: values,
-                    backgroundColor: values.map(v => v > 0 ? '#dc3545' : '#28a745')
+                    borderColor: '#ed1c24',
+                    backgroundColor: 'rgba(237, 28, 36, 0.1)',
+                    fill: true,
+                    tension: 0.3
                 }]
             },
             options: { responsive: true, maintainAspectRatio: false }
         });
+    }
+
+    function filterTableManual() {
+        const val = document.getElementById('searchTable').value.toUpperCase();
+        const rows = document.querySelector("#tableWrapper table tbody").rows;
+        for (let i = 0; i < rows.length; i++) {
+            const txt = rows[i].innerText.toUpperCase();
+            rows[i].style.display = txt.includes(val) ? "" : "none";
+        }
     }
 </script>
 </body>
