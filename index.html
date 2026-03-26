@@ -10,77 +10,30 @@
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     
     <style>
-        /* ================= VÁRIAVEIS DE COR E ESTILO ================= */
         :root {
-            --primary-red: #D32F2F;
-            --dark-red: #B71C1C;
-            --bg-color: #F4F7F6;
-            --surface-white: #FFFFFF;
-            --text-main: #2C3E50;
-            --text-muted: #7F8C8D;
-            --border-light: #E0E6ED;
-            --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
-            --shadow-md: 0 8px 24px rgba(0,0,0,0.08);
-            --radius-md: 12px;
-            --radius-lg: 16px;
+            --primary-red: #D32F2F; --dark-red: #B71C1C; --bg-color: #F4F7F6;
+            --surface-white: #FFFFFF; --text-main: #2C3E50; --text-muted: #7F8C8D;
+            --border-light: #E0E6ED; --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+            --shadow-md: 0 8px 24px rgba(0,0,0,0.08); --radius-md: 12px; --radius-lg: 16px;
         }
-
-        /* ================= RESET E TIPOGRAFIA ================= */
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
-
-        /* ================= MENU LATERAL (SIDEBAR) ================= */
-        .sidebar { width: 260px; background: var(--surface-white); border-right: 1px solid var(--border-light); display: flex; flex-direction: column; padding: 24px 16px; z-index: 10; }
-        .brand { font-size: 22px; font-weight: 800; color: var(--primary-red); margin-bottom: 40px; text-align: center; letter-spacing: -0.5px; }
-        .brand span { color: var(--text-main); font-weight: 300; }
-        .nav-item { padding: 14px 20px; margin-bottom: 10px; border-radius: var(--radius-md); color: var(--text-muted); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.3s ease; }
+        .sidebar { width: 260px; background: var(--surface-white); border-right: 1px solid var(--border-light); display: flex; flex-direction: column; padding: 24px 16px; }
+        .brand { font-size: 22px; font-weight: 800; color: var(--primary-red); margin-bottom: 40px; text-align: center; }
+        .nav-item { padding: 14px 20px; margin-bottom: 10px; border-radius: var(--radius-md); color: var(--text-muted); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.3s; }
         .nav-item:hover { background: #fdf2f2; color: var(--primary-red); }
         .nav-item.active { background: var(--primary-red); color: white; box-shadow: 0 4px 12px rgba(211, 47, 47, 0.3); }
-
-        /* ================= CONTEÚDO PRINCIPAL ================= */
         .main-content { flex: 1; padding: 32px 40px; overflow-y: auto; }
-        .page-header { margin-bottom: 32px; }
-        .page-header h1 { font-size: 28px; font-weight: 700; color: var(--text-main); }
-        .page-header p { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
-        .hidden { display: none !important; }
-
-        /* ================= CARDS E COMPONENTES ================= */
         .card { background: var(--surface-white); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-light); margin-bottom: 24px; }
-        
-        /* Drag & Drop Area */
-        .drop-zone { border: 2px dashed #ccc; border-radius: var(--radius-lg); padding: 50px 20px; text-align: center; background: #fafafa; cursor: pointer; transition: 0.3s; margin-top: 20px; }
+        .drop-zone { border: 2px dashed #ccc; border-radius: var(--radius-lg); padding: 40px; text-align: center; background: #fafafa; cursor: pointer; margin-top: 20px; }
         .drop-zone.dragover { border-color: var(--primary-red); background: #fdf2f2; }
-        .drop-zone i { font-size: 48px; color: #ccc; margin-bottom: 10px; display: block; }
-        .drop-zone.dragover i { color: var(--primary-red); }
-        
-        /* Formulários e Botões */
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: end; }
-        .form-group { display: flex; flex-direction: column; gap: 8px; }
-        label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-        input, select { padding: 12px 16px; border: 1px solid var(--border-light); border-radius: 8px; font-size: 14px; outline: none; transition: 0.3s; background: #fbfcfc; }
-        input:focus, select:focus { border-color: var(--primary-red); background: white; box-shadow: 0 0 0 3px rgba(211,47,47,0.1); }
-        
-        .btn-primary { background: var(--primary-red); color: white; border: none; padding: 14px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
-        .btn-primary:hover { background: var(--dark-red); transform: translateY(-2px); box-shadow: var(--shadow-md); }
-        .btn-outline { background: transparent; border: 1px solid var(--border-light); color: var(--text-main); padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
-        .btn-outline:hover { background: #f4f4f4; }
-
-        /* ================= KPIs E AUDITORIA ================= */
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 24px; }
-        .kpi-card { background: white; padding: 20px; border-radius: var(--radius-md); border-left: 4px solid var(--text-muted); box-shadow: var(--shadow-sm); }
-        .kpi-card.danger { border-left-color: var(--primary-red); }
-        .kpi-card.success { border-left-color: #27ae60; }
-        .kpi-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
-        .kpi-value { font-size: 24px; font-weight: 800; color: var(--text-main); }
-        .kpi-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-
-        /* Tabela */
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; align-items: end; }
+        .btn-primary { background: var(--primary-red); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; justify-content: center; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { background: #f8f9fa; padding: 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border-light); }
-        td { padding: 16px; border-bottom: 1px solid var(--border-light); font-size: 14px; }
-        tr:hover { background: #fdf2f2; }
-        .alert-text { color: var(--primary-red); font-weight: bold; }
-        .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #eee; }
+        th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 11px; color: var(--text-muted); border-bottom: 2px solid var(--border-light); }
+        td { padding: 12px; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+        .hidden { display: none !important; }
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; background: #eee; }
         .badge.alert { background: #ffebee; color: var(--primary-red); }
     </style>
 </head>
@@ -88,343 +41,145 @@
 
     <aside class="sidebar">
         <div class="brand">GERMANI<span>CUSTOS</span></div>
-        <div class="nav-item active" onclick="switchView('import', this)">
-            <i class="ri-upload-cloud-2-line"></i> Importação de Dados
-        </div>
-        <div class="nav-item" onclick="switchView('report', this)">
-            <i class="ri-bar-chart-box-line"></i> Relatório de Auditoria
-        </div>
+        <div class="nav-item active" onclick="switchView('import', this)"><i class="ri-upload-cloud-2-line"></i> Importação</div>
+        <div class="nav-item" onclick="switchView('report', this)"><i class="ri-bar-chart-box-line"></i> Auditoria</div>
     </aside>
 
     <main class="main-content">
-        
         <section id="view-import">
-            <div class="page-header">
-                <h1>Importação de Custos</h1>
-                <p>Arraste e solte as planilhas semanais do sistema para o banco de dados Supabase.</p>
-            </div>
-            
-            <div class="card" style="max-width: 600px;">
-                <div class="form-group">
-                    <label>Data de Referência (Segunda-feira):</label>
-                    <input type="date" id="importDate">
-                </div>
+            <h1>Importação de Custos</h1>
+            <div class="card" style="max-width: 600px; margin-top: 20px;">
+                <label style="font-size: 12px; font-weight: bold; color: var(--text-muted);">DATA DE REFERÊNCIA:</label>
+                <input type="date" id="importDate" style="width: 100%; padding: 10px; margin-top: 5px; border-radius: 8px; border: 1px solid var(--border-light);">
                 
                 <div class="drop-zone" id="dropZone">
-                    <i class="ri-file-excel-2-line"></i>
-                    <h3>Arraste sua planilha .xlsx aqui</h3>
-                    <p style="color: #888; margin-top: 8px;">ou clique para selecionar o arquivo</p>
-                    <input type="file" id="fileInput" accept=".xlsx, .csv" class="hidden">
+                    <i class="ri-file-excel-2-line" style="font-size: 40px; color: #ccc;"></i>
+                    <p>Arraste a planilha ou clique aqui</p>
+                    <input type="file" id="fileInput" accept=".xlsx" class="hidden">
                 </div>
-
-                <div id="uploadStatus" style="margin-top: 20px; text-align: center; font-weight: bold; display: none; padding: 15px; border-radius: 8px;"></div>
+                <div id="uploadStatus" style="margin-top: 15px; padding: 15px; border-radius: 8px; display: none; text-align: center; font-size: 14px;"></div>
             </div>
         </section>
 
         <section id="view-report" class="hidden">
-            <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
-                <div>
-                    <h1>Auditoria Analítica</h1>
-                    <p>Filtros hierárquicos e análise de volatilidade de custos.</p>
-                </div>
-                <button class="btn-outline" onclick="exportToExcel()"><i class="ri-file-excel-line"></i> Exportar Dados</button>
-            </div>
-
+            <h1>Relatório Analítico</h1>
             <div class="card form-grid">
-                <div class="form-group">
-                    <label>Data Início:</label>
-                    <input type="date" id="dtStart">
-                </div>
-                <div class="form-group">
-                    <label>Data Fim:</label>
-                    <input type="date" id="dtEnd">
-                </div>
-                <div class="form-group">
-                    <label>1. Origem:</label>
-                    <select id="selO" onchange="applyCascata('O')"><option value="TODAS">TODAS</option></select>
-                </div>
-                <div class="form-group">
-                    <label>2. Família:</label>
-                    <select id="selF" onchange="applyCascata('F')"><option value="TODAS">TODAS</option></select>
-                </div>
-                <div class="form-group">
-                    <label>3. Agrupamento:</label>
-                    <select id="selA" onchange="applyCascata('A')"><option value="TODAS">TODAS</option></select>
-                </div>
-                <div class="form-group">
-                    <button class="btn-primary" onclick="generateReport()" style="width: 100%; height: 45px;"><i class="ri-search-line"></i> Analisar</button>
-                </div>
+                <div><label>Início:</label><input type="date" id="dtStart" style="width: 100%"></div>
+                <div><label>Fim:</label><input type="date" id="dtEnd" style="width: 100%"></div>
+                <div><label>Origem:</label><select id="selO" onchange="applyCascata('O')" style="width: 100%"><option value="TODAS">TODAS</option></select></div>
+                <div><label>Família:</label><select id="selF" onchange="applyCascata('F')" style="width: 100%"><option value="TODAS">TODAS</option></select></div>
+                <button class="btn-primary" onclick="generateReport()"><i class="ri-search-line"></i> Analisar</button>
             </div>
 
             <div id="reportContent" class="hidden">
-                <div class="kpi-grid">
-                    <div class="kpi-card danger">
-                        <div class="kpi-title"><i class="ri-alert-line"></i> Maior Alta Registrada</div>
-                        <div class="kpi-value" id="kpiHighVal">0%</div>
-                        <div class="kpi-desc" id="kpiHighDesc">-</div>
-                    </div>
-                    <div class="kpi-card success">
-                        <div class="kpi-title"><i class="ri-arrow-down-line"></i> Maior Queda Registrada</div>
-                        <div class="kpi-value" id="kpiLowVal">0%</div>
-                        <div class="kpi-desc" id="kpiLowDesc">-</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-title"><i class="ri-price-tag-3-line"></i> Itens Analisados</div>
-                        <div class="kpi-value" id="kpiTotalItems">0</div>
-                        <div class="kpi-desc">no período selecionado</div>
-                    </div>
-                </div>
-
-                <div class="card" style="height: 350px;">
-                    <canvas id="mainChart"></canvas>
-                </div>
-
+                <div class="card" style="height: 300px;"><canvas id="mainChart"></canvas></div>
                 <div class="card">
-                    <h3 style="margin-bottom: 16px; font-size: 16px;"><i class="ri-table-line"></i> Detalhamento de Custos (Alertas > 5%)</h3>
-                    <div style="overflow-x: auto;">
-                        <table id="dataTable">
-                            <thead>
-                                <tr>
-                                    <th>Código</th>
-                                    <th>Descrição do Item</th>
-                                    <th>Custo Inicial</th>
-                                    <th>Custo Final</th>
-                                    <th>Variação %</th>
-                                    <th>Status Auditoria</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
+                    <table>
+                        <thead><tr><th>Código</th><th>Descrição</th><th>Custo Inicial</th><th>Custo Final</th><th>Var %</th><th>Status</th></tr></thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
                 </div>
             </div>
         </section>
-
     </main>
 
     <script>
-        // ================= CONFIGURAÇÕES SUPABASE =================
         const S_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
         const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
         const sb = supabase.createClient(S_URL, S_KEY);
         
-        let masterData = [], famsMaster = [], rawCostData = [], chartInstance = null;
+        let masterData = [], famsMaster = [], chartInstance = null;
 
-        // ================= INICIALIZAÇÃO =================
         window.onload = async () => {
-            const [{ data: origens }, { data: dict }, { data: fams }] = await Promise.all([
+            const [{ data: o }, { data: d }, { data: f }] = await Promise.all([
                 sb.from('categorias_origem').select('*'),
                 sb.from('dicionario_produtos').select('*'),
                 sb.from('categorias_familia').select('*')
             ]);
-            
-            masterData = dict || [];
-            famsMaster = fams || [];
-            
-            const selO = document.getElementById('selO');
-            origens?.forEach(o => selO.innerHTML += `<option value="${o.id}">${o.id} - ${o.descricao}</option>`);
+            masterData = d || []; famsMaster = f || [];
+            o?.forEach(item => document.getElementById('selO').innerHTML += `<option value="${item.id}">${item.descricao}</option>`);
         };
 
-        // ================= NAVEGAÇÃO =================
-        function switchView(viewId, el) {
+        function switchView(id, el) {
             document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById('view-' + viewId).classList.remove('hidden');
+            document.getElementById('view-' + id).classList.remove('hidden');
             el.classList.add('active');
         }
 
-        // ================= LÓGICA DE FILTROS CASCATA =================
-        function applyCascata(nivel) {
-            const oValue = document.getElementById('selO').value;
-            const fSelect = document.getElementById('selF');
-            const aSelect = document.getElementById('selA');
-
-            if(nivel === 'O') {
-                fSelect.innerHTML = aSelect.innerHTML = '<option value="TODAS">TODAS</option>';
-                const filtrados = masterData.filter(d => oValue === 'TODAS' || d.origem_cod === oValue);
-                const idsUnicos = [...new Set(filtrados.map(d => d.familia_cod))];
-                
-                idsUnicos.forEach(id => {
-                    const info = famsMaster.find(fam => fam.id === id);
-                    if(info) fSelect.innerHTML += `<option value="${info.id}">${info.descricao}</option>`;
-                });
-            }
-            if(nivel === 'F') {
-                aSelect.innerHTML = '<option value="TODAS">TODAS</option>';
-                const fValue = fSelect.value;
-                const filtrados = masterData.filter(d => fValue === 'TODAS' || d.familia_cod === fValue);
-                const agrsUnicos = [...new Set(filtrados.map(d => d.agrupamento_cod))];
-                
-                agrsUnicos.forEach(id => { if(id) aSelect.innerHTML += `<option value="${id}">${id}</option>`; });
-            }
-        }
-
-        // ================= DRAG & DROP UPLOAD (CORRIGIDO) =================
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        dropZone.onclick = () => fileInput.click();
+        fileInput.onchange = () => processFile(fileInput.files[0]);
 
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault(); dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; processFile(fileInput.files[0]); }
-        });
-        fileInput.addEventListener('change', () => { if (fileInput.files.length) processFile(fileInput.files[0]); });
-
-        function processFile(file) {
+        async function processFile(file) {
             const date = document.getElementById('importDate').value;
             const status = document.getElementById('uploadStatus');
-            
-            if(!date) {
-                alert("⚠️ Por favor, preencha a Data de Referência antes de enviar a planilha.");
-                return;
-            }
-            
-            status.style.display = 'block';
-            status.style.background = '#e3f2fd'; 
-            status.style.color = '#1565c0';
-            status.innerHTML = "<i class='ri-loader-4-line ri-spin'></i> ⏳ Lendo arquivo e comunicando com banco de dados...";
+            if(!date) return alert("Selecione a Data!");
+
+            status.style.display = 'block'; status.style.background = '#e3f2fd'; status.innerText = "⏳ Processando...";
 
             const reader = new FileReader();
             reader.onload = async (e) => {
-                try {
-                    const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    // Lê a planilha pulando formatações estranhas
-                    const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-
-                    const payload = rows.map(r => {
-                        // Busca as chaves independentemente de espaços ou letras maiusculas
-                        const keys = Object.keys(r);
-                        const keyProd = keys.find(k => k.trim().toLowerCase() === 'produto');
-                        const keyDesc = keys.find(k => k.trim().toLowerCase().includes('descri'));
-                        const keyCusto = keys.find(k => k.trim().toLowerCase().includes('custo total'));
-
-                        const cod = keyProd ? String(r[keyProd]).trim() : '';
-                        const desc = keyDesc ? String(r[keyDesc]).trim() : '';
-                        let custoRaw = keyCusto ? String(r[keyCusto]) : '0';
-
-                        // Limpa o valor do custo (Remove R$, espaços e converte vírgula pra ponto)
-                        let custoClean = custoRaw.replace(/[^\d,-]/g, '').replace(',', '.');
-                        let custo = parseFloat(custoClean);
-
-                        return {
-                            codigo_produto: cod,
-                            descricao: desc,
-                            custo_total: isNaN(custo) ? 0 : custo,
-                            data_referencia: date
-                        };
-                    }).filter(x => x.codigo_produto.length > 2 && x.custo_total > 0);
-
-                    if(payload.length === 0) {
-                        throw new Error("Nenhum dado financeiro encontrado.");
-                    }
-
-                    const { error } = await sb.from('historico_custos').upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
+                const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+                const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                const payload = rows.map(r => {
+                    const k = Object.keys(r);
+                    const cProd = k.find(x => x.toLowerCase().trim() === 'produto');
+                    const cCust = k.find(x => x.toLowerCase().trim().includes('custo total'));
+                    const cDesc = k.find(x => x.toLowerCase().trim().includes('descri'));
                     
-                    if(error) {
-                        console.error(error);
-                        status.style.background = '#ffebee'; 
-                        status.style.color = '#c62828';
-                        status.innerHTML = "❌ Erro ao salvar dados no Supabase. O Produto pode não estar no Dicionário.";
-                    } else {
-                        // MENSAGEM DE SUCESSO BEM CLARA E VERDE
-                        status.style.background = '#e8f5e9'; 
-                        status.style.color = '#2e7d32';
-                        status.style.border = '2px solid #2e7d32';
-                        status.innerHTML = `<i class="ri-checkbox-circle-fill" style="font-size: 20px; vertical-align: middle;"></i> <b>SUCESSO ABSOLUTO!</b><br> ${payload.length} itens foram salvos no banco de dados para a data ${date.split('-').reverse().join('/')}.`;
-                        
-                        // Limpa o input file para poder subir outro arquivo
-                        fileInput.value = "";
-                    }
-                } catch (err) {
-                    console.error("Erro na leitura do Excel:", err);
-                    status.style.background = '#fff3cd'; 
-                    status.style.color = '#856404';
-                    status.style.border = '1px solid #ffeeba';
-                    status.innerHTML = "⚠️ <b>Erro de Leitura:</b> O sistema não encontrou as colunas 'Produto' e 'Custo Total' com valores válidos.";
+                    let val = String(r[cCust] || '0').replace(/[^\d,-]/g, '').replace(',', '.');
+                    return { codigo_produto: String(r[cProd] || ''), descricao: String(r[cDesc] || ''), custo_total: parseFloat(val), data_referencia: date };
+                }).filter(x => x.codigo_produto.length > 2 && x.custo_total > 0);
+
+                const { error } = await sb.from('historico_custos').upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
+                if(error) { status.style.background = '#ffebee'; status.innerText = "❌ Erro: Verifique se os produtos estão no dicionário."; }
+                else { 
+                    status.style.background = '#e8f5e9'; status.style.color = '#2e7d32';
+                    status.innerHTML = `<b>✅ SUCESSO!</b><br>${payload.length} itens salvos para ${date}.`;
                 }
             };
             reader.readAsArrayBuffer(file);
         }
 
-        // ================= GERAÇÃO DE RELATÓRIO E KPIs =================
         async function generateReport() {
-            const start = document.getElementById('dtStart').value, end = document.getElementById('dtEnd').value;
-            const o = document.getElementById('selO').value, f = document.getElementById('selF').value, a = document.getElementById('selA').value;
-            if(!start || !end) return alert("Defina o período (Data Início e Data Fim).");
+            const s = document.getElementById('dtStart').value, e = document.getElementById('dtEnd').value;
+            const o = document.getElementById('selO').value, f = document.getElementById('selF').value;
+            if(!s || !e) return alert("Selecione as datas!");
 
-            let query = sb.from('historico_custos').select(`*, dicionario_produtos!inner(*)`).gte('data_referencia', start).lte('data_referencia', end);
+            // MUDANÇA AQUI: .select('*, dicionario_produtos(*)') permite ver o custo mesmo sem dicionário
+            let query = sb.from('historico_custos').select('*, dicionario_produtos(*)').gte('data_referencia', s).lte('data_referencia', e);
             if(o !== 'TODAS') query = query.eq('dicionario_produtos.origem_cod', o);
             if(f !== 'TODAS') query = query.eq('dicionario_produtos.familia_cod', f);
-            if(a !== 'TODAS') query = query.eq('dicionario_produtos.agrupamento_cod', a);
 
             const { data, error } = await query.order('data_referencia', { ascending: true });
-            if(error || !data || data.length === 0) return alert("Nenhum dado encontrado para os filtros e datas selecionados.");
-            
-            rawCostData = data;
-            processAuditoryData(data);
-        }
+            if(!data || data.length === 0) return alert("Nenhum dado encontrado. Verifique se subiu os arquivos nestas datas.");
 
-        function processAuditoryData(data) {
             const grouped = {};
             data.forEach(d => { if(!grouped[d.codigo_produto]) grouped[d.codigo_produto] = []; grouped[d.codigo_produto].push(d); });
 
-            let tbody = '', maxAlt = -999, maxQued = 999, itemAlt = '-', itemQued = '-';
-            const chartLabels = [], chartDataValues = [], chartColors = [];
-
-            Object.values(grouped).forEach(prods => {
-                const ini = prods[0].custo_total, fim = prods[prods.length-1].custo_total;
-                const varPerc = ini === 0 ? 0 : ((fim - ini) / ini * 100);
-                
-                if(varPerc > maxAlt) { maxAlt = varPerc; itemAlt = prods[0].descricao; }
-                if(varPerc < maxQued) { maxQued = varPerc; itemQued = prods[0].descricao; }
-
-                const isAlert = varPerc > 5;
-                const trClass = isAlert ? 'class="alert-text"' : '';
-                const badgeHtml = isAlert ? `<span class="badge alert"><i class="ri-error-warning-line"></i> Atenção</span>` : `<span class="badge">Normal</span>`;
-
-                tbody += `<tr ${trClass}>
-                    <td><b>${prods[0].codigo_produto}</b></td>
-                    <td>${prods[0].descricao}</td>
-                    <td>R$ ${ini.toFixed(4)}</td>
-                    <td>R$ ${fim.toFixed(4)}</td>
-                    <td>${varPerc > 0 ? '+' : ''}${varPerc.toFixed(2)}%</td>
-                    <td>${badgeHtml}</td>
-                </tr>`;
-
-                if(Object.keys(grouped).length <= 50) { 
-                    chartLabels.push(prods[0].codigo_produto);
-                    chartDataValues.push(varPerc);
-                    chartColors.push(varPerc > 0 ? '#D32F2F' : '#7F8C8D');
-                }
+            let html = '';
+            Object.values(grouped).forEach(p => {
+                const ini = p[0].custo_total, fim = p[p.length-1].custo_total;
+                const varP = ((fim - ini) / ini * 100);
+                html += `<tr><td>${p[0].codigo_produto}</td><td>${p[0].descricao}</td><td>R$ ${ini.toFixed(2)}</td><td>R$ ${fim.toFixed(2)}</td><td>${varP.toFixed(2)}%</td><td><span class="badge ${varP > 5 ? 'alert' : ''}">${varP > 5 ? 'ALTA' : 'OK'}</span></td></tr>`;
             });
-
-            document.querySelector('#dataTable tbody').innerHTML = tbody;
-            document.getElementById('kpiHighVal').innerText = `+${maxAlt.toFixed(2)}%`;
-            document.getElementById('kpiHighDesc').innerText = itemAlt;
-            document.getElementById('kpiLowVal').innerText = `${maxQued.toFixed(2)}%`;
-            document.getElementById('kpiLowDesc').innerText = itemQued;
-            document.getElementById('kpiTotalItems').innerText = Object.keys(grouped).length;
-            
+            document.getElementById('tableBody').innerHTML = html;
             document.getElementById('reportContent').classList.remove('hidden');
-            renderChart(chartLabels, chartDataValues, chartColors);
         }
 
-        function renderChart(labels, data, colors) {
-            if(chartInstance) chartInstance.destroy();
-            chartInstance = new Chart(document.getElementById('mainChart').getContext('2d'), {
-                type: 'bar',
-                data: { labels: labels, datasets: [{ label: 'Variação % no Período', data: data, backgroundColor: colors, borderRadius: 4 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
-        }
-
-        function exportToExcel() {
-            const table = document.getElementById("dataTable");
-            if(!table || !table.rows.length) return alert("Gere um relatório primeiro!");
-            XLSX.writeFile(XLSX.utils.table_to_book(table), "Auditoria_Germani.xlsx");
+        function applyCascata(n) {
+            const oVal = document.getElementById('selO').value;
+            const fSel = document.getElementById('selF');
+            if(n === 'O') {
+                fSel.innerHTML = '<option value="TODAS">TODAS</option>';
+                const filtered = masterData.filter(d => oVal === 'TODAS' || d.origem_cod === oVal);
+                [...new Set(filtered.map(d => d.familia_cod))].forEach(id => {
+                    const name = famsMaster.find(x => x.id === id);
+                    if(name) fSel.innerHTML += `<option value="${name.id}">${name.descricao}</option>`;
+                });
+            }
         }
     </script>
 </body>
