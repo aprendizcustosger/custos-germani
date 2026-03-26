@@ -273,38 +273,56 @@
         });
         fileInput.addEventListener('change', () => { if (fileInput.files.length) processFile(fileInput.files[0]); });
 
-        function processFile(file) {
-            const date = document.getElementById('importDate').value;
-            const status = document.getElementById('uploadStatus');
-            if(!date) return alert("Por favor, preencha a Data de Referência antes de enviar a planilha.");
-            
-            status.style.display = 'block';
-            status.style.background = '#e3f2fd'; status.style.color = '#1565c0';
-            status.innerText = "⏳ Lendo arquivo e comunicando com banco de dados...";
+function processFile(file) {
+    const date = document.getElementById('importDate').value;
+    const status = document.getElementById('uploadStatus');
+    
+    if(!date) return alert("Por favor, preencha a Data de Referência antes de enviar.");
+    
+    status.style.display = 'block';
+    status.style.background = '#e3f2fd'; status.style.color = '#1565c0';
+    status.innerText = "⏳ Lendo planilha Germani...";
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
-                const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                const payload = rows.map(r => ({
-                    codigo_produto: String(r['Produto'] || r['codigo'] || ''),
-                    descricao: r['Descrição'] || r['descricao'] || r['Descrição '] || '',
-                    custo_total: parseFloat(String(r['Custo Total'] || r['custo'] || 0).replace(',','.')),
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(firstSheet);
+
+            const payload = rows.map(r => {
+                // Mapeamento dinâmico baseado nos nomes exatos da sua imagem
+                const cod = String(r['Produto'] || '');
+                const desc = r['Descrição'] || '';
+                // Pega o Custo Total e garante que seja um número (remove vírgulas se houver)
+                let custo = r['Custo Total'] || 0;
+                if(typeof custo === 'string') custo = parseFloat(custo.replace(',', '.'));
+
+                return {
+                    codigo_produto: cod.trim(),
+                    descricao: desc.trim(),
+                    custo_total: custo,
                     data_referencia: date
-                })).filter(x => x.codigo_produto.length > 2);
+                };
+            }).filter(x => x.codigo_produto.length > 0 && x.custo_total > 0);
 
-                const { error } = await sb.from('historico_custos').upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
-                if(error) {
-                    status.style.background = '#ffebee'; status.style.color = '#c62828';
-                    status.innerText = "❌ Erro ao salvar dados. Verifique a conexão.";
-                } else {
-                    status.style.background = '#e8f5e9'; status.style.color = '#2e7d32';
-                    status.innerHTML = `<i class="ri-check-line"></i> Sucesso! ${payload.length} registros salvos para o dia ${date.split('-').reverse().join('/')}`;
-                }
-            };
-            reader.readAsArrayBuffer(file);
+            if(payload.length === 0) throw new Error("Nenhum dado válido encontrado na planilha.");
+
+            const { error } = await sb.from('historico_custos').upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
+            
+            if(error) throw error;
+
+            status.style.background = '#e8f5e9'; status.style.color = '#2e7d32';
+            status.innerHTML = `<i class="ri-check-line"></i> Sucesso! ${payload.length} itens processados.`;
+
+        } catch (err) {
+            console.error("Erro detalhado:", err);
+            status.style.background = '#ffebee'; status.style.color = '#c62828';
+            status.innerText = "❌ Erro: Verifique se as colunas 'Produto' e 'Custo Total' existem.";
         }
-
+    };
+    reader.readAsArrayBuffer(file);
+}
         // ================= GERAÇÃO DE RELATÓRIO E KPIs =================
         async function generateReport() {
             const start = document.getElementById('dtStart').value, end = document.getElementById('dtEnd').value;
