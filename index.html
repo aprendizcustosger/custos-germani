@@ -4,385 +4,105 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Germani Alimentos | Auditoria de Custos</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" />
+  <link rel="stylesheet" href="style.css" />
+
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
-
-  <style>
-    :root {
-      --bg-1: #0f172a;
-      --bg-2: #1e293b;
-      --card: rgba(255, 255, 255, 0.1);
-      --card-strong: rgba(255, 255, 255, 0.16);
-      --line: rgba(255, 255, 255, 0.2);
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --primary: #ef4444;
-      --primary-2: #dc2626;
-      --ok: #10b981;
-      --warn: #f59e0b;
-      --soft-red: rgba(239, 68, 68, 0.14);
-      --soft-green: rgba(16, 185, 129, 0.14);
-      --radius: 16px;
-      --radius-sm: 12px;
-      --shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: Inter, Segoe UI, Roboto, system-ui, sans-serif;
-      color: var(--text);
-      min-height: 100vh;
-      background:
-        radial-gradient(circle at top right, #b91c1c 0%, transparent 30%),
-        radial-gradient(circle at bottom left, #0ea5e9 0%, transparent 35%),
-        linear-gradient(145deg, var(--bg-1), var(--bg-2));
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      overflow: hidden;
-    }
-
-    .sidebar {
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
-      border-right: 1px solid var(--line);
-      padding: 28px 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .brand {
-      padding: 14px;
-      border-radius: var(--radius);
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-    }
-
-    .brand h1 {
-      font-size: 18px;
-      line-height: 1.2;
-      letter-spacing: 0.3px;
-    }
-
-    .brand p {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px 16px;
-      border-radius: var(--radius-sm);
-      color: var(--text);
-      border: 1px solid transparent;
-      cursor: pointer;
-      transition: all .25s ease;
-      user-select: none;
-    }
-
-    .nav-item:hover {
-      transform: translateY(-2px);
-      background: rgba(255,255,255,0.1);
-      border-color: var(--line);
-    }
-
-    .nav-item.active {
-      background: linear-gradient(145deg, rgba(239,68,68,0.35), rgba(239,68,68,0.15));
-      border-color: rgba(239,68,68,0.5);
-      box-shadow: 0 10px 20px rgba(239, 68, 68, 0.2);
-    }
-
-    .main {
-      padding: 26px;
-      overflow: auto;
-    }
-
-    .panel {
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      background: linear-gradient(160deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 20px;
-      margin-bottom: 18px;
-      animation: fadeIn .35s ease;
-    }
-
-    .hidden { display: none !important; }
-
-    .title {
-      font-size: 26px;
-      margin-bottom: 6px;
-    }
-
-    .subtitle {
-      color: var(--muted);
-      margin-bottom: 22px;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(140px, 1fr));
-      gap: 12px;
-      align-items: end;
-    }
-
-    label {
-      display: block;
-      font-size: 12px;
-      color: #cbd5e1;
-      margin-bottom: 6px;
-      font-weight: 600;
-      letter-spacing: .3px;
-    }
-
-    input, select {
-      width: 100%;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: rgba(15, 23, 42, 0.5);
-      color: var(--text);
-      padding: 10px 12px;
-      transition: border-color .2s ease, transform .2s ease;
-    }
-
-    input:focus, select:focus {
-      outline: none;
-      border-color: #38bdf8;
-      transform: translateY(-1px);
-    }
-
-    .btn {
-      border: 0;
-      border-radius: 10px;
-      padding: 11px 16px;
-      font-weight: 700;
-      cursor: pointer;
-      color: #fff;
-      background: linear-gradient(145deg, var(--primary), var(--primary-2));
-      transition: all .2s ease;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
-
-    .drop-zone {
-      border: 2px dashed rgba(255,255,255,0.4);
-      border-radius: var(--radius);
-      background: rgba(255,255,255,0.06);
-      min-height: 180px;
-      display: grid;
-      place-content: center;
-      text-align: center;
-      cursor: pointer;
-      transition: all .25s ease;
-      padding: 20px;
-      margin-top: 16px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .drop-zone::after {
-      content: "";
-      position: absolute;
-      inset: -40%;
-      background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 55%);
-      opacity: 0;
-      transition: opacity .25s ease;
-      pointer-events: none;
-    }
-
-    .drop-zone:hover::after,
-    .drop-zone.dragover::after { opacity: 1; }
-
-    .drop-zone.dragover {
-      border-color: #38bdf8;
-      background: rgba(56, 189, 248, 0.15);
-      transform: scale(1.01);
-    }
-
-    .drop-zone.processing {
-      border-style: solid;
-      border-color: var(--warn);
-      background: rgba(245, 158, 11, 0.12);
-      animation: pulse 1.1s infinite;
-    }
-
-    .upload-status {
-      margin-top: 14px;
-      border-radius: 12px;
-      padding: 12px;
-      font-size: 14px;
-      border: 1px solid transparent;
-      display: none;
-    }
-
-    .status-info { display: block; background: rgba(56,189,248,0.15); border-color: rgba(56,189,248,0.45); }
-    .status-ok { display: block; background: var(--soft-green); border-color: rgba(16,185,129,0.45); color: #bbf7d0; }
-    .status-error { display: block; background: var(--soft-red); border-color: rgba(239,68,68,0.45); color: #fecaca; }
-
-    .kpis {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(120px, 1fr));
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .kpi {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 14px;
-      background: rgba(2, 6, 23, 0.35);
-    }
-
-    .kpi .label { font-size: 12px; color: var(--muted); }
-    .kpi .value { font-size: 24px; font-weight: 800; margin-top: 6px; }
-
-    .table-wrap { overflow-x: auto; }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-
-    th, td {
-      padding: 11px 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.12);
-      text-align: left;
-      white-space: nowrap;
-    }
-
-    th { color: #cbd5e1; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
-
-    tr:hover td { background: rgba(255,255,255,0.05); }
-
-    tr.row-alert td { background: rgba(239,68,68,0.14); }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      padding: 4px 9px;
-      font-size: 11px;
-      font-weight: 800;
-      border: 1px solid transparent;
-    }
-
-    .badge-alert { color: #fecaca; background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.45); }
-    .badge-ok { color: #bbf7d0; background: rgba(16,185,129,0.18); border-color: rgba(16,185,129,0.4); }
-
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.25); }
-      50% { box-shadow: 0 0 0 16px rgba(245, 158, 11, 0); }
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @media (max-width: 1100px) {
-      body { grid-template-columns: 1fr; }
-      .sidebar { flex-direction: row; flex-wrap: wrap; align-items: center; }
-      .brand { width: 100%; }
-      .form-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
-    }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script type="module" src="ui-controller.js"></script>
 </head>
 <body>
-  <aside class="sidebar">
-    <div class="brand">
+  <aside class="sidebar glass">
+    <div class="brand-card">
       <h1><i class="ri-shield-check-line"></i> Germani Custos</h1>
-      <p>Painel de Auditoria de Custos em tempo real</p>
+      <p>Painel de Auditoria de Custos</p>
     </div>
 
-    <div class="nav-item active" onclick="switchView('import', this)">
-      <i class="ri-upload-cloud-2-line"></i> Importação
-    </div>
-    <div class="nav-item" onclick="switchView('report', this)">
-      <i class="ri-bar-chart-box-line"></i> Auditoria
-    </div>
+    <nav class="nav" aria-label="Navegação principal">
+      <button class="nav-item active" data-view-trigger="import">
+        <i class="ri-upload-cloud-2-line"></i>
+        <span>Importação</span>
+      </button>
+      <button class="nav-item" data-view-trigger="report">
+        <i class="ri-bar-chart-box-line"></i>
+        <span>Auditoria</span>
+      </button>
+    </nav>
   </aside>
 
-  <main class="main">
-    <section id="view-import">
-      <h2 class="title">Importação Inteligente</h2>
-      <p class="subtitle">Upload Zero-Format com limpeza automática de moeda e mapeamento flexível de colunas.</p>
+  <main class="content">
+    <section id="view-import" class="view">
+      <header class="view-header center">
+        <h2>Importação Inteligente de Custos</h2>
+        <p>Faça upload da planilha (.xlsx) e deixe o sistema normalizar os dados automaticamente.</p>
+      </header>
 
-      <div class="panel" style="max-width: 760px;">
-        <label for="importDate">Data de Referência</label>
-        <input type="date" id="importDate" />
-
-        <div class="drop-zone" id="dropZone">
-          <i class="ri-file-excel-2-line" style="font-size: 42px; margin-bottom: 10px;"></i>
-          <h3 style="margin-bottom: 6px;">Arraste a planilha .xlsx aqui</h3>
-          <p style="color: var(--muted); font-size: 14px;">ou clique para selecionar o arquivo</p>
-          <input type="file" id="fileInput" accept=".xlsx" class="hidden" />
+      <div class="panel center import-panel">
+        <div class="field max-420">
+          <label for="importDate">Data de Referência</label>
+          <input type="date" id="importDate" />
         </div>
 
-        <div class="upload-status" id="uploadStatus"></div>
+        <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Área de upload">
+          <input type="file" id="fileInput" class="hidden" accept=".xlsx" />
+          <i class="ri-file-excel-2-line"></i>
+          <h3>Arraste a planilha aqui</h3>
+          <p>ou clique para selecionar o arquivo</p>
+        </div>
+
+        <p class="help-text">Formato suportado: Excel (.xlsx) com colunas compatíveis com Produto, Descrição e Custo Total.</p>
       </div>
     </section>
 
-    <section id="view-report" class="hidden">
-      <h2 class="title">Auditoria Analítica</h2>
-      <p class="subtitle">Filtros em cascata (Origem → Família → Agrupamento), visão executiva e alertas de volatilidade.</p>
+    <section id="view-report" class="view hidden">
+      <header class="view-header">
+        <h2>Auditoria Analítica</h2>
+        <p>Filtros em cascata: Origem → Família → Agrupamento.</p>
+      </header>
 
       <div class="panel">
-        <div class="form-grid">
-          <div>
+        <div class="filters-grid">
+          <div class="field">
             <label for="dtStart">Início</label>
             <input type="date" id="dtStart" />
           </div>
-          <div>
+          <div class="field">
             <label for="dtEnd">Fim</label>
             <input type="date" id="dtEnd" />
           </div>
-          <div>
+          <div class="field">
             <label for="selO">Origem</label>
-            <select id="selO" onchange="applyCascata('O')"><option value="TODAS">TODAS</option></select>
+            <select id="selO"><option value="TODAS">TODAS</option></select>
           </div>
-          <div>
+          <div class="field">
             <label for="selF">Família</label>
-            <select id="selF" onchange="applyCascata('F')"><option value="TODAS">TODAS</option></select>
+            <select id="selF"><option value="TODAS">TODAS</option></select>
           </div>
-          <div>
+          <div class="field">
             <label for="selA">Agrupamento</label>
             <select id="selA"><option value="TODOS">TODOS</option></select>
           </div>
         </div>
 
-        <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
-          <button class="btn" onclick="generateReport()"><i class="ri-search-line"></i> Analisar</button>
+        <div class="actions-row">
+          <button id="analyzeBtn" class="btn-primary"><i class="ri-search-line"></i> Analisar</button>
         </div>
       </div>
 
       <div id="reportContent" class="hidden">
         <div class="kpis">
-          <div class="kpi"><div class="label">Itens analisados</div><div class="value" id="kpiItens">0</div></div>
-          <div class="kpi"><div class="label">Alertas (>5%)</div><div class="value" id="kpiAlertas">0</div></div>
-          <div class="kpi"><div class="label">Média de variação</div><div class="value" id="kpiMedia">0,00%</div></div>
+          <article class="kpi glass"><span>Itens analisados</span><strong id="kpiItens">0</strong></article>
+          <article class="kpi glass"><span>Alertas (>5%)</span><strong id="kpiAlertas">0</strong></article>
+          <article class="kpi glass"><span>Média de variação</span><strong id="kpiMedia">0,00%</strong></article>
         </div>
 
-        <div class="panel" style="height: 340px;">
+        <div class="panel chart-panel">
           <canvas id="mainChart"></canvas>
         </div>
 
-        <div class="panel table-wrap">
+        <div class="panel table-panel">
           <table>
             <thead>
               <tr>
@@ -393,7 +113,7 @@
                 <th>Agrupamento</th>
                 <th>Custo Inicial</th>
                 <th>Custo Final</th>
-                <th>Var %</th>
+                <th>Var%</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -403,340 +123,5 @@
       </div>
     </section>
   </main>
-
-  <script>
-    const S_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
-    const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
-    const sb = supabase.createClient(S_URL, S_KEY);
-
-    let masterData = [];
-    let famsMaster = [];
-    let agrupMaster = [];
-    let chartInstance = null;
-
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.getElementById('fileInput');
-    const uploadStatus = document.getElementById('uploadStatus');
-
-    function switchView(id, el) {
-      document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      document.getElementById('view-' + id).classList.remove('hidden');
-      el.classList.add('active');
-    }
-
-    function normalizeText(value) {
-      return String(value || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
-
-    function parseCurrencyBRL(input) {
-      const cleaned = String(input || '0')
-        .replace(/r\$/gi, '')
-        .replace(/\s/g, '')
-        .replace(/\./g, '')
-        .replace(',', '.')
-        .replace(/[^0-9.-]/g, '');
-      const n = parseFloat(cleaned);
-      return Number.isFinite(n) ? n : 0;
-    }
-
-    function setUploadStatus(type, message) {
-      uploadStatus.className = 'upload-status';
-      if (type === 'info') uploadStatus.classList.add('status-info');
-      if (type === 'ok') uploadStatus.classList.add('status-ok');
-      if (type === 'error') uploadStatus.classList.add('status-error');
-      uploadStatus.innerHTML = message;
-    }
-
-    async function loadMasters() {
-      const [{ data: o }, { data: d }, { data: f }, { data: a }] = await Promise.all([
-        sb.from('categorias_origem').select('*').order('descricao'),
-        sb.from('dicionario_produtos').select('*'),
-        sb.from('categorias_familia').select('*').order('descricao'),
-        sb.from('categorias_agrupamento').select('*').order('descricao')
-      ]);
-
-      masterData = d || [];
-      famsMaster = f || [];
-      agrupMaster = a || [];
-
-      const selO = document.getElementById('selO');
-      selO.innerHTML = '<option value="TODAS">TODAS</option>';
-      (o || []).forEach(item => {
-        selO.innerHTML += `<option value="${item.id}">${item.descricao}</option>`;
-      });
-
-      applyCascata('O');
-    }
-
-    function applyCascata(level) {
-      const oVal = document.getElementById('selO').value;
-      const fSel = document.getElementById('selF');
-      const fVal = fSel.value;
-      const aSel = document.getElementById('selA');
-
-      if (level === 'O') {
-        fSel.innerHTML = '<option value="TODAS">TODAS</option>';
-
-        const filteredByOrig = masterData.filter(d => oVal === 'TODAS' || String(d.origem_cod) === String(oVal));
-        const famIds = [...new Set(filteredByOrig.map(d => String(d.familia_cod)).filter(Boolean))];
-
-        famIds.forEach(id => {
-          const fam = famsMaster.find(x => String(x.id) === String(id));
-          fSel.innerHTML += `<option value="${id}">${fam?.descricao || id}</option>`;
-        });
-      }
-
-      const selectedFamily = level === 'O' ? 'TODAS' : fVal;
-      aSel.innerHTML = '<option value="TODOS">TODOS</option>';
-
-      const filtered = masterData.filter(d => {
-        const okOrig = oVal === 'TODAS' || String(d.origem_cod) === String(oVal);
-        const okFam = selectedFamily === 'TODAS' || String(d.familia_cod) === String(selectedFamily);
-        return okOrig && okFam;
-      });
-
-      const agrIds = [...new Set(filtered.map(d => String(d.agrupamento_cod)).filter(Boolean))];
-      agrIds.forEach(id => {
-        const agr = agrupMaster.find(x => String(x.id) === String(id));
-        aSel.innerHTML += `<option value="${id}">${agr?.descricao || id}</option>`;
-      });
-    }
-
-    async function processFile(file) {
-      const date = document.getElementById('importDate').value;
-      if (!date) {
-        alert('Selecione a Data de Referência!');
-        return;
-      }
-      if (!file) {
-        alert('Selecione uma planilha .xlsx.');
-        return;
-      }
-
-      dropZone.classList.add('processing');
-      setUploadStatus('info', '⏳ Processando planilha...');
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-          const sheet = wb.Sheets[wb.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-          const payload = rows.map(r => {
-            const columns = Object.keys(r);
-            const normalized = columns.map(c => ({ original: c, n: normalizeText(c).replace(/\s+/g, '') }));
-
-            const cProd = normalized.find(x => x.n.includes('produto') || x.n.includes('codigoproduto') || x.n === 'codigo')?.original;
-            const cDesc = normalized.find(x => x.n.includes('descricao') || x.n.includes('descr'))?.original;
-            const cCust = normalized.find(x => x.n.includes('custototal') || (x.n.includes('custo') && x.n.includes('total')) || x.n.includes('valorcusto'))?.original;
-
-            return {
-              codigo_produto: String(r[cProd] || '').trim(),
-              descricao: String(r[cDesc] || '').trim(),
-              custo_total: parseCurrencyBRL(r[cCust]),
-              data_referencia: date
-            };
-          }).filter(x => x.codigo_produto.length > 1 && x.custo_total > 0);
-
-          if (!payload.length) {
-            setUploadStatus('error', '❌ Nenhum item válido foi encontrado. Verifique os cabeçalhos: Produto, Descrição, Custo Total.');
-            dropZone.classList.remove('processing');
-            return;
-          }
-
-          const { error } = await sb
-            .from('historico_custos')
-            .upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
-
-          if (error) {
-            setUploadStatus('error', '❌ Erro ao salvar no Supabase. Verifique dicionário de produtos e permissões.');
-          } else {
-            setUploadStatus('ok', `<b>✅ SUCESSO ABSOLUTO!</b><br>${payload.length} itens salvos para ${date}.`);
-          }
-        } finally {
-          dropZone.classList.remove('processing');
-        }
-      };
-
-      reader.readAsArrayBuffer(file);
-    }
-
-    async function generateReport() {
-      const s = document.getElementById('dtStart').value;
-      const e = document.getElementById('dtEnd').value;
-      const o = document.getElementById('selO').value;
-      const f = document.getElementById('selF').value;
-      const a = document.getElementById('selA').value;
-
-      if (!s || !e) {
-        alert('Selecione o período inicial e final.');
-        return;
-      }
-
-      let query = sb
-        .from('historico_custos')
-        .select('codigo_produto, descricao, custo_total, data_referencia, dicionario_produtos!left(origem_cod, familia_cod, agrupamento_cod)')
-        .gte('data_referencia', s)
-        .lte('data_referencia', e);
-
-      if (o !== 'TODAS') query = query.eq('dicionario_produtos.origem_cod', o);
-      if (f !== 'TODAS') query = query.eq('dicionario_produtos.familia_cod', f);
-      if (a !== 'TODOS') query = query.eq('dicionario_produtos.agrupamento_cod', a);
-
-      const { data, error } = await query.order('data_referencia', { ascending: true });
-      if (error) {
-        alert('Erro ao buscar dados: ' + error.message);
-        return;
-      }
-      if (!data || data.length === 0) {
-        alert('Nenhum dado encontrado para os filtros informados.');
-        return;
-      }
-
-      const grouped = {};
-      data.forEach(item => {
-        if (!grouped[item.codigo_produto]) grouped[item.codigo_produto] = [];
-        grouped[item.codigo_produto].push(item);
-      });
-
-      const rows = [];
-      Object.values(grouped).forEach(items => {
-        const ini = Number(items[0].custo_total || 0);
-        const fim = Number(items[items.length - 1].custo_total || 0);
-        const varP = ini > 0 ? ((fim - ini) / ini) * 100 : 0;
-        const dict = items[items.length - 1].dicionario_produtos || {};
-
-        rows.push({
-          codigo: items[0].codigo_produto,
-          descricao: items[items.length - 1].descricao || '-',
-          origem: dict.origem_cod || '-',
-          familia: dict.familia_cod || '-',
-          agrupamento: dict.agrupamento_cod || '-',
-          inicial: ini,
-          final: fim,
-          variacao: varP,
-          alert: varP > 5
-        });
-      });
-
-      renderKpis(rows);
-      renderTable(rows);
-      renderChart(rows);
-      document.getElementById('reportContent').classList.remove('hidden');
-    }
-
-    function renderKpis(rows) {
-      const count = rows.length;
-      const alerts = rows.filter(r => r.alert).length;
-      const avg = count ? (rows.reduce((acc, cur) => acc + cur.variacao, 0) / count) : 0;
-
-      document.getElementById('kpiItens').textContent = count;
-      document.getElementById('kpiAlertas').textContent = alerts;
-      document.getElementById('kpiMedia').textContent = `${avg.toFixed(2).replace('.', ',')}%`;
-    }
-
-    function renderTable(rows) {
-      const body = document.getElementById('tableBody');
-      body.innerHTML = rows
-        .sort((a, b) => b.variacao - a.variacao)
-        .map(r => `
-          <tr class="${r.alert ? 'row-alert' : ''}">
-            <td>${r.codigo}</td>
-            <td>${r.descricao}</td>
-            <td>${r.origem}</td>
-            <td>${r.familia}</td>
-            <td>${r.agrupamento}</td>
-            <td>R$ ${r.inicial.toFixed(2)}</td>
-            <td>R$ ${r.final.toFixed(2)}</td>
-            <td>${r.variacao.toFixed(2)}%</td>
-            <td>
-              <span class="badge ${r.alert ? 'badge-alert' : 'badge-ok'}">
-                <i class="${r.alert ? 'ri-error-warning-line' : 'ri-checkbox-circle-line'}"></i>
-                ${r.alert ? 'ALTA' : 'OK'}
-              </span>
-            </td>
-          </tr>
-        `)
-        .join('');
-    }
-
-    function renderChart(rows) {
-      const labels = rows.map(r => r.codigo);
-      const data = rows.map(r => Number(r.variacao.toFixed(2)));
-      const colors = rows.map(v => (v > 0 ? '#ef4444' : (v < 0 ? '#10b981' : '#9ca3af')));
-
-      const ctx = document.getElementById('mainChart');
-      if (chartInstance) chartInstance.destroy();
-
-      chartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Variação %',
-            data,
-            backgroundColor: colors,
-            borderRadius: 8,
-            maxBarThickness: 26
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { labels: { color: '#e2e8f0' } },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => ` ${ctx.raw}%`
-              }
-            }
-          },
-          scales: {
-            x: {
-              ticks: { color: '#cbd5e1', maxRotation: 60, minRotation: 0 },
-              grid: { color: 'rgba(255,255,255,0.08)' }
-            },
-            y: {
-              ticks: { color: '#cbd5e1', callback: (v) => `${v}%` },
-              grid: { color: 'rgba(255,255,255,0.08)' }
-            }
-          }
-        }
-      });
-    }
-
-    dropZone.onclick = () => fileInput.click();
-    fileInput.onchange = () => processFile(fileInput.files[0]);
-
-    ['dragenter', 'dragover'].forEach(evt => {
-      dropZone.addEventListener(evt, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.add('dragover');
-      });
-    });
-
-    ['dragleave', 'drop'].forEach(evt => {
-      dropZone.addEventListener(evt, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.remove('dragover');
-      });
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-      const file = e.dataTransfer.files?.[0];
-      if (file) processFile(file);
-    });
-
-    window.onload = loadMasters;
-  </script>
 </body>
 </html>
