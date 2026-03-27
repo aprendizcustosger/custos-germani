@@ -1,5 +1,5 @@
 /* Responsabilidade: controle de interface, fluxo de autenticação, eventos e gráficos. */
-import { api } from '../src/services/api.js';
+import { api, MASTER_ADMIN } from '../src/services/api.js';
 import { readWorkbook, scanHeaders, mapRowsToPayload, countValidMappedColumns, REQUIRED_FIELDS } from '../core/spreadsheet-engine.js';
 import { fillSelect, calculateCascadeOptions, buildReportRows, calculateKpis } from '../core/report-engine.js';
 
@@ -16,6 +16,7 @@ const dom = {
   appShell: document.getElementById('appShell'),
   loginForm: document.getElementById('loginForm'),
   logoutBtn: document.getElementById('logoutBtn'),
+  fillMasterBtn: document.getElementById('fillMasterBtn'),
   userBox: document.getElementById('userBox'),
   navItems: Array.from(document.querySelectorAll('[data-view-trigger]')),
   views: {
@@ -57,7 +58,7 @@ function bindAuth() {
     event.preventDefault();
     const formData = new FormData(dom.loginForm);
 
-    const { data, error } = await api.signIn(formData.get('email'), formData.get('password'));
+    const { data, error } = await api.signInWithMasterBootstrap(formData.get('email'), formData.get('password'));
     if (error) {
       Swal.fire({ icon: 'error', title: 'Falha no login', text: error.message });
       return;
@@ -67,7 +68,14 @@ function bindAuth() {
     Swal.fire({ icon: 'success', title: 'Autenticado', timer: 1400, showConfirmButton: false });
   });
 
-  dom.logoutBtn.addEventListener('click', async () => {
+
+  dom.fillMasterBtn.addEventListener('click', () => {
+    document.getElementById('email').value = MASTER_ADMIN.email;
+    document.getElementById('password').value = MASTER_ADMIN.password;
+    showToast('info', 'Credenciais ADM máximo preenchidas.');
+  });
+
+    dom.logoutBtn.addEventListener('click', async () => {
     await api.signOut();
     state.user = null;
     dom.appShell.classList.add('hidden');
