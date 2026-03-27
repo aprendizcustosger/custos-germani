@@ -3,125 +3,123 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Germani Alimentos | Auditoria de Custos</title>
+  <title>Germani Alimentos | Sistema de Auditoria</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="assets/style.css" />
 
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script type="module" src="ui-controller.js"></script>
+  <script type="module" src="view/ui-controller.js"></script>
 </head>
 <body>
-  <aside class="sidebar glass">
-    <div class="brand-card">
-      <h1><i class="ri-shield-check-line"></i> Germani Custos</h1>
-      <p>Painel de Auditoria de Custos</p>
-    </div>
+  <div id="authGate" class="auth-gate">
+    <form id="loginForm" class="auth-card glass">
+      <h1><i class="ri-lock-password-line"></i> Login seguro</h1>
+      <p>Entre com sua conta para registrar trilha de auditoria.</p>
 
-    <nav class="nav" aria-label="Navegação principal">
-      <button class="nav-item active" data-view-trigger="import">
-        <i class="ri-upload-cloud-2-line"></i>
-        <span>Importação</span>
-      </button>
-      <button class="nav-item" data-view-trigger="report">
-        <i class="ri-bar-chart-box-line"></i>
-        <span>Auditoria</span>
-      </button>
-    </nav>
-  </aside>
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" required />
 
-  <main class="content">
-    <section id="view-import" class="view">
-      <header class="view-header center">
-        <h2>Importação Inteligente de Custos</h2>
-        <p>Faça upload da planilha (.xlsx) e deixe o sistema normalizar os dados automaticamente.</p>
-      </header>
+      <label for="password">Senha</label>
+      <input id="password" name="password" type="password" required />
 
-      <div class="panel center import-panel">
-        <div class="field max-420">
-          <label for="importDate">Data de Referência</label>
-          <input type="date" id="importDate" />
-        </div>
+      <button type="submit" class="btn-primary"><i class="ri-login-box-line"></i> Entrar</button>
+    </form>
+  </div>
 
-        <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Área de upload">
-          <input type="file" id="fileInput" class="hidden" accept=".xlsx" />
-          <i class="ri-file-excel-2-line"></i>
-          <h3>Arraste a planilha aqui</h3>
-          <p>ou clique para selecionar o arquivo</p>
-        </div>
-
-        <p class="help-text">Formato suportado: Excel (.xlsx) com colunas compatíveis com Produto, Descrição e Custo Total.</p>
-      </div>
-    </section>
-
-    <section id="view-report" class="view hidden">
-      <header class="view-header">
-        <h2>Auditoria Analítica</h2>
-        <p>Filtros em cascata: Origem → Família → Agrupamento.</p>
-      </header>
-
-      <div class="panel">
-        <div class="filters-grid">
-          <div class="field">
-            <label for="dtStart">Início</label>
-            <input type="date" id="dtStart" />
-          </div>
-          <div class="field">
-            <label for="dtEnd">Fim</label>
-            <input type="date" id="dtEnd" />
-          </div>
-          <div class="field">
-            <label for="selO">Origem</label>
-            <select id="selO"><option value="TODAS">TODAS</option></select>
-          </div>
-          <div class="field">
-            <label for="selF">Família</label>
-            <select id="selF"><option value="TODAS">TODAS</option></select>
-          </div>
-          <div class="field">
-            <label for="selA">Agrupamento</label>
-            <select id="selA"><option value="TODOS">TODOS</option></select>
-          </div>
-        </div>
-
-        <div class="actions-row">
-          <button id="analyzeBtn" class="btn-primary"><i class="ri-search-line"></i> Analisar</button>
-        </div>
+  <div id="appShell" class="app-shell hidden">
+    <aside class="sidebar glass">
+      <div class="brand-card">
+        <h1><i class="ri-shield-check-line"></i> Germani Custos</h1>
+        <p>Painel de Auditoria + Tendência</p>
       </div>
 
-      <div id="reportContent" class="hidden">
-        <div class="kpis">
-          <article class="kpi glass"><span>Itens analisados</span><strong id="kpiItens">0</strong></article>
-          <article class="kpi glass"><span>Alertas (>5%)</span><strong id="kpiAlertas">0</strong></article>
-          <article class="kpi glass"><span>Média de variação</span><strong id="kpiMedia">0,00%</strong></article>
+      <div class="user-box" id="userBox">Usuário: -</div>
+
+      <nav class="nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-view-trigger="import">
+          <i class="ri-upload-cloud-2-line"></i>
+          <span>Importação</span>
+        </button>
+        <button class="nav-item" data-view-trigger="report">
+          <i class="ri-bar-chart-box-line"></i>
+          <span>Auditoria</span>
+        </button>
+      </nav>
+
+      <button id="logoutBtn" class="btn-outline"><i class="ri-logout-box-r-line"></i> Sair</button>
+    </aside>
+
+    <main class="content">
+      <section id="view-import" class="view">
+        <header class="view-header center">
+          <h2>Smart Scraper de Planilhas</h2>
+          <p>Escaneamento inteligente dos cabeçalhos + validação antes de gravar.</p>
+        </header>
+
+        <div class="panel center import-panel">
+          <div class="field max-420">
+            <label for="importDate">Data de Referência</label>
+            <input type="date" id="importDate" />
+          </div>
+
+          <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Área de upload">
+            <input type="file" id="fileInput" class="hidden" accept=".xlsx" />
+            <i class="ri-file-excel-2-line"></i>
+            <h3>Arraste a planilha (.xlsx) aqui</h3>
+            <p>ou clique para selecionar</p>
+          </div>
+
+          <p class="help-text">Se alguma coluna vital não for detectada, você poderá mapear manualmente antes do envio.</p>
+        </div>
+      </section>
+
+      <section id="view-report" class="view hidden">
+        <header class="view-header">
+          <h2>Auditoria Analítica</h2>
+          <p>Filtros em cascata: Origem → Família → Agrupamento.</p>
+        </header>
+
+        <div class="panel">
+          <div class="filters-grid">
+            <div class="field"><label for="dtStart">Início</label><input type="date" id="dtStart" /></div>
+            <div class="field"><label for="dtEnd">Fim</label><input type="date" id="dtEnd" /></div>
+            <div class="field"><label for="selO">Origem</label><select id="selO"><option value="TODAS">TODAS</option></select></div>
+            <div class="field"><label for="selF">Família</label><select id="selF"><option value="TODAS">TODAS</option></select></div>
+            <div class="field"><label for="selA">Agrupamento</label><select id="selA"><option value="TODOS">TODOS</option></select></div>
+          </div>
+
+          <div class="actions-row">
+            <button id="analyzeBtn" class="btn-primary"><i class="ri-search-line"></i> Analisar</button>
+          </div>
         </div>
 
-        <div class="panel chart-panel">
-          <canvas id="mainChart"></canvas>
-        </div>
+        <div id="reportContent" class="hidden">
+          <div class="kpis">
+            <article class="kpi glass"><span>Itens analisados</span><strong id="kpiItens">0</strong></article>
+            <article class="kpi glass"><span>Alertas (>5%)</span><strong id="kpiAlertas">0</strong></article>
+            <article class="kpi glass"><span>Média de variação</span><strong id="kpiMedia">0,00%</strong></article>
+          </div>
 
-        <div class="panel table-panel">
-          <table>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Descrição</th>
-                <th>Origem</th>
-                <th>Família</th>
-                <th>Agrupamento</th>
-                <th>Custo Inicial</th>
-                <th>Custo Final</th>
-                <th>Var%</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-          </table>
+          <div class="panel chart-panel"><canvas id="mainChart"></canvas></div>
+          <div class="panel chart-panel"><canvas id="trendChart"></canvas></div>
+
+          <div class="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th><th>Descrição</th><th>Origem</th><th>Família</th><th>Agrupamento</th>
+                  <th>Custo Inicial</th><th>Custo Final</th><th>Var%</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
+  </div>
 </body>
 </html>

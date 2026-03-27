@@ -1,9 +1,5 @@
-/**
- * Monta opções em um select mantendo opção padrão.
- * @param {HTMLSelectElement} select
- * @param {Array<{value:string,label:string}>} options
- * @param {{value:string,label:string}} first
- */
+/* Responsabilidade: cálculos analíticos e lógica de cascata (Origem -> Família -> Agrupamento). */
+
 export function fillSelect(select, options, first) {
   select.innerHTML = `<option value="${first.value}">${first.label}</option>`;
   options.forEach(opt => {
@@ -11,39 +7,30 @@ export function fillSelect(select, options, first) {
   });
 }
 
-/**
- * Recalcula famílias a partir da origem e agrupamentos a partir da família.
- * @param {{origem:string,familia:string}} state
- * @param {{dicionario:Array,familias:Array,agrupamentos:Array}} masters
- */
 export function calculateCascadeOptions(state, masters) {
-  const dicionarioByOrigem = masters.dicionario.filter(item =>
+  const byOrigem = masters.dicionario.filter(item =>
     state.origem === 'TODAS' || String(item.origem_cod) === String(state.origem)
   );
 
-  const familyIds = [...new Set(dicionarioByOrigem.map(x => String(x.familia_cod)).filter(Boolean))];
+  const familyIds = [...new Set(byOrigem.map(x => String(x.familia_cod)).filter(Boolean))];
   const familyOptions = familyIds.map(id => {
-    const found = masters.familias.find(f => String(f.id) === id);
-    return { value: id, label: found?.descricao || id };
+    const fam = masters.familias.find(f => String(f.id) === id);
+    return { value: id, label: fam?.descricao || id };
   });
 
-  const dicionarioByFamilia = dicionarioByOrigem.filter(item =>
+  const byFamilia = byOrigem.filter(item =>
     state.familia === 'TODAS' || String(item.familia_cod) === String(state.familia)
   );
 
-  const groupIds = [...new Set(dicionarioByFamilia.map(x => String(x.agrupamento_cod)).filter(Boolean))];
+  const groupIds = [...new Set(byFamilia.map(x => String(x.agrupamento_cod)).filter(Boolean))];
   const groupOptions = groupIds.map(id => {
-    const found = masters.agrupamentos.find(g => String(g.id) === id);
-    return { value: id, label: found?.descricao || id };
+    const grp = masters.agrupamentos.find(g => String(g.id) === id);
+    return { value: id, label: grp?.descricao || id };
   });
 
   return { familyOptions, groupOptions };
 }
 
-/**
- * Agrupa histórico por produto e calcula métricas de variação.
- * @param {Array} historico
- */
 export function buildReportRows(historico) {
   const grouped = {};
   historico.forEach(item => {
@@ -73,14 +60,9 @@ export function buildReportRows(historico) {
   });
 }
 
-/**
- * Calcula KPIs executivos.
- * @param {Array} rows
- */
 export function calculateKpis(rows) {
   const totalItens = rows.length;
   const totalAlertas = rows.filter(r => r.alert).length;
   const mediaVariacao = totalItens ? rows.reduce((acc, cur) => acc + cur.variacao, 0) / totalItens : 0;
-
   return { totalItens, totalAlertas, mediaVariacao };
 }
