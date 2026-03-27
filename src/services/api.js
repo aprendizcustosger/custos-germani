@@ -58,17 +58,40 @@ export const api = {
   },
 
   async getHistorico(filters) {
-    let query = sb
+    const { data: historicoBase, error: historicoError } = await sb
       .from('historico_custos')
-      .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp, dicionario_produtos!left(origem_cod, familia_cod, agrupamento_cod)')
+      .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp')
       .gte('data_referencia', filters.start)
-      .lte('data_referencia', filters.end);
+      .lte('data_referencia', filters.end)
+      .order('data_referencia', { ascending: true });
 
-    if (filters.origem !== 'TODAS') query = query.eq('dicionario_produtos.origem_cod', filters.origem);
-    if (filters.familia !== 'TODAS') query = query.eq('dicionario_produtos.familia_cod', filters.familia);
-    if (filters.agrupamento !== 'TODOS') query = query.eq('dicionario_produtos.agrupamento_cod', filters.agrupamento);
+    if (historicoError) return { data: null, error: historicoError };
+    if (!historicoBase?.length) return { data: [], error: null };
 
-    return query.order('data_referencia', { ascending: true });
+    const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
+    const { data: dicionarioRows, error: dicionarioError } = await sb
+      .from('dicionario_produtos')
+      .select('codigo_produto, origem_cod, familia_cod, agrupamento_cod')
+      .in('codigo_produto', codigos);
+
+    if (dicionarioError) return { data: null, error: dicionarioError };
+
+    const dicionarioByCodigo = new Map((dicionarioRows || []).map(row => [String(row.codigo_produto), row]));
+
+    const historicoComDicionario = historicoBase.map(item => ({
+      ...item,
+      dicionario_produtos: dicionarioByCodigo.get(String(item.codigo_produto)) || null
+    }));
+
+    const filtrado = historicoComDicionario.filter(item => {
+      const dict = item.dicionario_produtos;
+      if (filters.origem !== 'TODAS' && String(dict?.origem_cod) !== String(filters.origem)) return false;
+      if (filters.familia !== 'TODAS' && String(dict?.familia_cod) !== String(filters.familia)) return false;
+      if (filters.agrupamento !== 'TODOS' && String(dict?.agrupamento_cod) !== String(filters.agrupamento)) return false;
+      return true;
+    });
+
+    return { data: filtrado, error: null };
   },
 
   async getTrendsByProduct(codigoProduto) {
