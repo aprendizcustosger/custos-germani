@@ -1,5 +1,5 @@
 /* Responsabilidade: controle de interface, auto-auth, eventos e gráficos. */
-import { api, MASTER_ADMIN } from '../src/services/api.js';
+import { api } from '../src/services/api.js';
 import { readWorkbook, scanHeaders, mapRowsToPayload, countValidMappedColumns, REQUIRED_FIELDS } from '../core/spreadsheet-engine.js';
 import { fillSelect, calculateCascadeOptions, buildReportRows, calculateKpis } from '../core/report-engine.js';
 
@@ -39,21 +39,13 @@ async function init() {
   bindNavigation();
   bindUpload();
   bindFilters();
-  await autoAuthenticate();
+  autoAuthenticate();
   await loadMasters();
 }
 
-async function autoAuthenticate() {
-  const session = await api.signInWithMasterBootstrap(MASTER_ADMIN.username, MASTER_ADMIN.password);
-  if (!session.error && session.data?.user) {
-    state.user = session.data.user;
-    dom.userBox.textContent = `Usuário: ${state.user.email}`;
-    return;
-  }
-
-  state.user = { id: 'PEDROK_LOCAL', email: MASTER_ADMIN.username };
-  dom.userBox.textContent = 'Usuário: PedroK (modo local)';
-  showToast('warning', 'Sem sessão Supabase. Operando com usuário local.');
+function autoAuthenticate() {
+  state.user = { id: null, email: 'modo_local' };
+  dom.userBox.textContent = 'Usuário: modo local';
 }
 
 async function loadMasters() {
@@ -131,7 +123,7 @@ async function handleImport(file) {
     mapping = manualMap;
   }
 
-  const payload = mapRowsToPayload(rows, mapping, refDate, state.user.id);
+  const payload = mapRowsToPayload(rows, mapping, refDate, state.user?.id || null);
   const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping));
   if (!confirmed) {
     dom.dropZone.classList.remove('processing');
