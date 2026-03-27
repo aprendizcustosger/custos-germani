@@ -58,7 +58,7 @@ function bindAuth() {
     event.preventDefault();
     const formData = new FormData(dom.loginForm);
 
-    const { data, error } = await api.signInWithMasterBootstrap(formData.get('email'), formData.get('password'));
+    const { data, error } = await api.signInWithMasterBootstrap(formData.get('login'), formData.get('password'));
     if (error) {
       Swal.fire({ icon: 'error', title: 'Falha no login', text: error.message });
       return;
@@ -70,7 +70,7 @@ function bindAuth() {
 
 
   dom.fillMasterBtn.addEventListener('click', () => {
-    document.getElementById('email').value = MASTER_ADMIN.email;
+    document.getElementById('login').value = MASTER_ADMIN.username;
     document.getElementById('password').value = MASTER_ADMIN.password;
     showToast('info', 'Credenciais ADM máximo preenchidas.');
   });

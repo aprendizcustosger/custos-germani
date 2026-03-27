@@ -5,26 +5,33 @@ const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
 
 export const MASTER_ADMIN = {
-  email: 'admin.maximo@germani.local',
-  password: 'Germani@2026!Admin'
+  username: 'PedroK',
+  email: 'pedrok@germani.local',
+  password: 'Pedrok0206'
 };
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+function resolveLoginToEmail(login) {
+  return login === MASTER_ADMIN.username ? MASTER_ADMIN.email : login;
+}
+
 export const api = {
-  async signIn(email, password) {
+  async signIn(login, password) {
+    const email = resolveLoginToEmail(login);
     return sb.auth.signInWithPassword({ email, password });
   },
 
-  async signInWithMasterBootstrap(email, password) {
+  async signInWithMasterBootstrap(login, password) {
+    const email = resolveLoginToEmail(login);
     const loginResult = await sb.auth.signInWithPassword({ email, password });
     if (!loginResult.error) return loginResult;
 
-    const isMaster = email === MASTER_ADMIN.email && password === MASTER_ADMIN.password;
+    const isMaster = login === MASTER_ADMIN.username && password === MASTER_ADMIN.password;
     if (!isMaster) return loginResult;
 
-    await sb.auth.signUp({ email, password });
-    return sb.auth.signInWithPassword({ email, password });
+    await sb.auth.signUp({ email: MASTER_ADMIN.email, password });
+    return sb.auth.signInWithPassword({ email: MASTER_ADMIN.email, password });
   },
 
   async signOut() {
