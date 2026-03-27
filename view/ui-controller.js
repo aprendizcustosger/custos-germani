@@ -1,4 +1,4 @@
-/* Responsabilidade: controle de interface, fluxo de autenticação, eventos e gráficos. */
+/* Responsabilidade: controle de interface, auto-auth, eventos e gráficos. */
 import { api, MASTER_ADMIN } from '../src/services/api.js';
 import { readWorkbook, scanHeaders, mapRowsToPayload, countValidMappedColumns, REQUIRED_FIELDS } from '../core/spreadsheet-engine.js';
 import { fillSelect, calculateCascadeOptions, buildReportRows, calculateKpis } from '../core/report-engine.js';
@@ -7,16 +7,10 @@ const state = {
   user: null,
   masters: { origens: [], familias: [], agrupamentos: [], dicionario: [] },
   chart: null,
-  trendChart: null,
-  lastRows: []
+  trendChart: null
 };
 
 const dom = {
-  authGate: document.getElementById('authGate'),
-  appShell: document.getElementById('appShell'),
-  loginForm: document.getElementById('loginForm'),
-  logoutBtn: document.getElementById('logoutBtn'),
-  fillMasterBtn: document.getElementById('fillMasterBtn'),
   userBox: document.getElementById('userBox'),
   navItems: Array.from(document.querySelectorAll('[data-view-trigger]')),
   views: {
@@ -42,53 +36,27 @@ const dom = {
 };
 
 async function init() {
-  bindAuth();
   bindNavigation();
   bindUpload();
   bindFilters();
+  await autoAuthenticate();
+  await loadMasters();
+}
 
-  const { data } = await api.getCurrentUser();
-  if (data?.user) {
-    await enterApp(data.user);
+async function autoAuthenticate() {
+  const session = await api.signInWithMasterBootstrap(MASTER_ADMIN.username, MASTER_ADMIN.password);
+  if (!session.error && session.data?.user) {
+    state.user = session.data.user;
+    dom.userBox.textContent = `Usuário: ${state.user.email}`;
+    return;
   }
+
+  state.user = { id: 'PEDROK_LOCAL', email: MASTER_ADMIN.username };
+  dom.userBox.textContent = 'Usuário: PedroK (modo local)';
+  showToast('warning', 'Sem sessão Supabase. Operando com usuário local.');
 }
 
-function bindAuth() {
-  dom.loginForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const formData = new FormData(dom.loginForm);
-
-    const { data, error } = await api.signInWithMasterBootstrap(formData.get('login'), formData.get('password'));
-    if (error) {
-      Swal.fire({ icon: 'error', title: 'Falha no login', text: error.message });
-      return;
-    }
-
-    await enterApp(data.user);
-    Swal.fire({ icon: 'success', title: 'Autenticado', timer: 1400, showConfirmButton: false });
-  });
-
-
-  dom.fillMasterBtn.addEventListener('click', () => {
-    document.getElementById('login').value = MASTER_ADMIN.username;
-    document.getElementById('password').value = MASTER_ADMIN.password;
-    showToast('info', 'Credenciais ADM máximo preenchidas.');
-  });
-
-    dom.logoutBtn.addEventListener('click', async () => {
-    await api.signOut();
-    state.user = null;
-    dom.appShell.classList.add('hidden');
-    dom.authGate.classList.remove('hidden');
-    Swal.fire({ icon: 'info', title: 'Sessão encerrada', timer: 1200, showConfirmButton: false });
-  });
-}
-
-async function enterApp(user) {
-  state.user = user;
-  dom.userBox.textContent = `Usuário: ${user.email}`;
-  dom.authGate.classList.add('hidden');
-  dom.appShell.classList.remove('hidden');
+async function loadMasters() {
   state.masters = await api.getMasters();
   fillSelect(dom.selO, state.masters.origens.map(x => ({ value: String(x.id), label: x.descricao })), { value: 'TODAS', label: 'TODAS' });
   refreshCascade();
@@ -144,11 +112,6 @@ function refreshCascade(trigger) {
 }
 
 async function handleImport(file) {
-  if (!state.user) {
-    Swal.fire({ icon: 'warning', title: 'Login obrigatório' });
-    return;
-  }
-
   const refDate = dom.importDate.value;
   if (!refDate) {
     showToast('warning', 'Selecione a data de referência.');
@@ -189,17 +152,12 @@ async function handleImport(file) {
 
   const { error } = await api.upsertHistoricoCustos(payload);
   dom.dropZone.classList.remove('processing');
-
   if (error) {
     Swal.fire({ icon: 'error', title: 'Falha na gravação', text: error.message });
     return;
   }
 
-  Swal.fire({
-    icon: 'success',
-    title: 'Importação concluída',
-    html: `<b>${payload.length}</b> itens salvos em <b>${refDate}</b>.<br/>Usuário: <b>${state.user.email}</b>`
-  });
+  Swal.fire({ icon: 'success', title: 'Importação concluída', html: `<b>${payload.length}</b> itens salvos em <b>${refDate}</b>.` });
 }
 
 async function requestManualMapping(headers, current) {
@@ -214,12 +172,11 @@ async function requestManualMapping(headers, current) {
       `).join('')}
     `,
     focusConfirm: false,
-    preConfirm: () => {
-      const produto = document.getElementById('map_produto').value;
-      const descricao = document.getElementById('map_descricao').value;
-      const custo_total = document.getElementById('map_custo_total').value;
-      return { produto, descricao, custo_total };
-    }
+    preConfirm: () => ({
+      produto: document.getElementById('map_produto').value,
+      descricao: document.getElementById('map_descricao').value,
+      custo_total: document.getElementById('map_custo_total').value
+    })
   });
 
   if (!result.isConfirmed) return null;
@@ -257,7 +214,6 @@ async function runReport() {
   }
 
   const rows = buildReportRows(data).sort((a, b) => b.variacao - a.variacao);
-  state.lastRows = rows;
   const kpis = calculateKpis(rows);
 
   dom.kpiItens.textContent = kpis.totalItens;
@@ -286,8 +242,7 @@ function renderTable(rows) {
 
   dom.tableBody.querySelectorAll('tr').forEach(tr => {
     tr.addEventListener('click', async () => {
-      const codigo = tr.dataset.codigo;
-      await renderTrendChart(codigo);
+      await renderTrendChart(tr.dataset.codigo);
     });
   });
 }
@@ -298,11 +253,7 @@ function renderMainChart(rows) {
     type: 'bar',
     data: {
       labels: rows.map(r => r.codigo),
-      datasets: [{
-        label: 'Variação %',
-        data: rows.map(r => Number(r.variacao.toFixed(2))),
-        backgroundColor: rows.map(r => (r.variacao > 0 ? '#ef4444' : r.variacao < 0 ? '#10b981' : '#9ca3af'))
-      }]
+      datasets: [{ label: 'Variação %', data: rows.map(r => Number(r.variacao.toFixed(2))), backgroundColor: rows.map(r => (r.variacao > 0 ? '#ef4444' : r.variacao < 0 ? '#10b981' : '#9ca3af')) }]
     },
     options: { responsive: true, maintainAspectRatio: false }
   });
@@ -320,14 +271,7 @@ async function renderTrendChart(codigo) {
     type: 'line',
     data: {
       labels: (data || []).map(x => x.data_referencia),
-      datasets: [{
-        label: `Tendência 6M - ${codigo}`,
-        data: (data || []).map(x => Number(x.custo_total || 0)),
-        borderColor: '#38bdf8',
-        backgroundColor: 'rgba(56,189,248,0.15)',
-        tension: 0.25,
-        fill: true
-      }]
+      datasets: [{ label: `Tendência 6M - ${codigo}`, data: (data || []).map(x => Number(x.custo_total || 0)), borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', tension: 0.25, fill: true }]
     },
     options: { responsive: true, maintainAspectRatio: false }
   });
