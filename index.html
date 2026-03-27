@@ -1,186 +1,108 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Germani Alimentos | Painel de Auditoria</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-    
-    <style>
-        :root {
-            --primary-red: #D32F2F; --dark-red: #B71C1C; --bg-color: #F4F7F6;
-            --surface-white: #FFFFFF; --text-main: #2C3E50; --text-muted: #7F8C8D;
-            --border-light: #E0E6ED; --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
-            --shadow-md: 0 8px 24px rgba(0,0,0,0.08); --radius-md: 12px; --radius-lg: 16px;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
-        .sidebar { width: 260px; background: var(--surface-white); border-right: 1px solid var(--border-light); display: flex; flex-direction: column; padding: 24px 16px; }
-        .brand { font-size: 22px; font-weight: 800; color: var(--primary-red); margin-bottom: 40px; text-align: center; }
-        .nav-item { padding: 14px 20px; margin-bottom: 10px; border-radius: var(--radius-md); color: var(--text-muted); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.3s; }
-        .nav-item:hover { background: #fdf2f2; color: var(--primary-red); }
-        .nav-item.active { background: var(--primary-red); color: white; box-shadow: 0 4px 12px rgba(211, 47, 47, 0.3); }
-        .main-content { flex: 1; padding: 32px 40px; overflow-y: auto; }
-        .card { background: var(--surface-white); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-light); margin-bottom: 24px; }
-        .drop-zone { border: 2px dashed #ccc; border-radius: var(--radius-lg); padding: 40px; text-align: center; background: #fafafa; cursor: pointer; margin-top: 20px; }
-        .drop-zone.dragover { border-color: var(--primary-red); background: #fdf2f2; }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; align-items: end; }
-        .btn-primary { background: var(--primary-red); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; justify-content: center; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { background: #f8f9fa; padding: 12px; text-align: left; font-size: 11px; color: var(--text-muted); border-bottom: 2px solid var(--border-light); }
-        td { padding: 12px; border-bottom: 1px solid var(--border-light); font-size: 13px; }
-        .hidden { display: none !important; }
-        .badge { padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; background: #eee; }
-        .badge.alert { background: #ffebee; color: var(--primary-red); }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Germani Alimentos | Sistema de Auditoria</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" />
+  <link rel="stylesheet" href="assets/style.css" />
+
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script type="module" src="view/ui-controller.js"></script>
 </head>
 <body>
+  <div id="appShell" class="app-shell">
+    <aside class="sidebar glass">
+      <div class="brand-card">
+        <h1><i class="ri-shield-check-line"></i> Germani Custos</h1>
+        <p>Painel de Auditoria + Tendência</p>
+      </div>
 
-    <aside class="sidebar">
-        <div class="brand">GERMANI<span>CUSTOS</span></div>
-        <div class="nav-item active" onclick="switchView('import', this)"><i class="ri-upload-cloud-2-line"></i> Importação</div>
-        <div class="nav-item" onclick="switchView('report', this)"><i class="ri-bar-chart-box-line"></i> Auditoria</div>
+      <div class="user-box" id="userBox">Usuário: carregando...</div>
+
+      <nav class="nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-view-trigger="import">
+          <i class="ri-upload-cloud-2-line"></i>
+          <span>Importação</span>
+        </button>
+        <button class="nav-item" data-view-trigger="report">
+          <i class="ri-bar-chart-box-line"></i>
+          <span>Auditoria</span>
+        </button>
+      </nav>
     </aside>
 
-    <main class="main-content">
-        <section id="view-import">
-            <h1>Importação de Custos</h1>
-            <div class="card" style="max-width: 600px; margin-top: 20px;">
-                <label style="font-size: 12px; font-weight: bold; color: var(--text-muted);">DATA DE REFERÊNCIA:</label>
-                <input type="date" id="importDate" style="width: 100%; padding: 10px; margin-top: 5px; border-radius: 8px; border: 1px solid var(--border-light);">
-                
-                <div class="drop-zone" id="dropZone">
-                    <i class="ri-file-excel-2-line" style="font-size: 40px; color: #ccc;"></i>
-                    <p>Arraste a planilha ou clique aqui</p>
-                    <input type="file" id="fileInput" accept=".xlsx" class="hidden">
-                </div>
-                <div id="uploadStatus" style="margin-top: 15px; padding: 15px; border-radius: 8px; display: none; text-align: center; font-size: 14px;"></div>
-            </div>
-        </section>
+    <main class="content">
+      <section id="view-import" class="view">
+        <header class="view-header center">
+          <h2>Smart Scraper de Planilhas</h2>
+          <p>Escaneamento inteligente dos cabeçalhos + validação antes de gravar.</p>
+        </header>
 
-        <section id="view-report" class="hidden">
-            <h1>Relatório Analítico</h1>
-            <div class="card form-grid">
-                <div><label>Início:</label><input type="date" id="dtStart" style="width: 100%"></div>
-                <div><label>Fim:</label><input type="date" id="dtEnd" style="width: 100%"></div>
-                <div><label>Origem:</label><select id="selO" onchange="applyCascata('O')" style="width: 100%"><option value="TODAS">TODAS</option></select></div>
-                <div><label>Família:</label><select id="selF" onchange="applyCascata('F')" style="width: 100%"><option value="TODAS">TODAS</option></select></div>
-                <button class="btn-primary" onclick="generateReport()"><i class="ri-search-line"></i> Analisar</button>
-            </div>
+        <div class="panel center import-panel">
+          <div class="field max-420">
+            <label for="importDate">Data de Referência</label>
+            <input type="date" id="importDate" />
+          </div>
 
-            <div id="reportContent" class="hidden">
-                <div class="card" style="height: 300px;"><canvas id="mainChart"></canvas></div>
-                <div class="card">
-                    <table>
-                        <thead><tr><th>Código</th><th>Descrição</th><th>Custo Inicial</th><th>Custo Final</th><th>Var %</th><th>Status</th></tr></thead>
-                        <tbody id="tableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
+          <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Área de upload">
+            <input type="file" id="fileInput" class="hidden" accept=".xlsx" />
+            <i class="ri-file-excel-2-line"></i>
+            <h3>Arraste a planilha (.xlsx) aqui</h3>
+            <p>ou clique para selecionar</p>
+          </div>
+
+          <p class="help-text">Se alguma coluna vital não for detectada, você poderá mapear manualmente antes do envio.</p>
+        </div>
+      </section>
+
+      <section id="view-report" class="view hidden">
+        <header class="view-header">
+          <h2>Auditoria Analítica</h2>
+          <p>Filtros em cascata: Origem → Família → Agrupamento.</p>
+        </header>
+
+        <div class="panel">
+          <div class="filters-grid">
+            <div class="field"><label for="dtStart">Início</label><input type="date" id="dtStart" /></div>
+            <div class="field"><label for="dtEnd">Fim</label><input type="date" id="dtEnd" /></div>
+            <div class="field"><label for="selO">Origem</label><select id="selO"><option value="TODAS">TODAS</option></select></div>
+            <div class="field"><label for="selF">Família</label><select id="selF"><option value="TODAS">TODAS</option></select></div>
+            <div class="field"><label for="selA">Agrupamento</label><select id="selA"><option value="TODOS">TODOS</option></select></div>
+          </div>
+
+          <div class="actions-row">
+            <button id="analyzeBtn" class="btn-primary"><i class="ri-search-line"></i> Analisar</button>
+          </div>
+        </div>
+
+        <div id="reportContent" class="hidden">
+          <div class="kpis">
+            <article class="kpi glass"><span>Itens analisados</span><strong id="kpiItens">0</strong></article>
+            <article class="kpi glass"><span>Alertas (>5%)</span><strong id="kpiAlertas">0</strong></article>
+            <article class="kpi glass"><span>Média de variação</span><strong id="kpiMedia">0,00%</strong></article>
+          </div>
+
+          <div class="panel chart-panel"><canvas id="mainChart"></canvas></div>
+          <div class="panel chart-panel"><canvas id="trendChart"></canvas></div>
+
+          <div class="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th><th>Descrição</th><th>Origem</th><th>Família</th><th>Agrupamento</th>
+                  <th>Custo Inicial</th><th>Custo Final</th><th>Var%</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </main>
-
-    <script>
-        const S_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
-        const S_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
-        const sb = supabase.createClient(S_URL, S_KEY);
-        
-        let masterData = [], famsMaster = [], chartInstance = null;
-
-        window.onload = async () => {
-            const [{ data: o }, { data: d }, { data: f }] = await Promise.all([
-                sb.from('categorias_origem').select('*'),
-                sb.from('dicionario_produtos').select('*'),
-                sb.from('categorias_familia').select('*')
-            ]);
-            masterData = d || []; famsMaster = f || [];
-            o?.forEach(item => document.getElementById('selO').innerHTML += `<option value="${item.id}">${item.descricao}</option>`);
-        };
-
-        function switchView(id, el) {
-            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById('view-' + id).classList.remove('hidden');
-            el.classList.add('active');
-        }
-
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        dropZone.onclick = () => fileInput.click();
-        fileInput.onchange = () => processFile(fileInput.files[0]);
-
-        async function processFile(file) {
-            const date = document.getElementById('importDate').value;
-            const status = document.getElementById('uploadStatus');
-            if(!date) return alert("Selecione a Data!");
-
-            status.style.display = 'block'; status.style.background = '#e3f2fd'; status.innerText = "⏳ Processando...";
-
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
-                const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                const payload = rows.map(r => {
-                    const k = Object.keys(r);
-                    const cProd = k.find(x => x.toLowerCase().trim() === 'produto');
-                    const cCust = k.find(x => x.toLowerCase().trim().includes('custo total'));
-                    const cDesc = k.find(x => x.toLowerCase().trim().includes('descri'));
-                    
-                    let val = String(r[cCust] || '0').replace(/[^\d,-]/g, '').replace(',', '.');
-                    return { codigo_produto: String(r[cProd] || ''), descricao: String(r[cDesc] || ''), custo_total: parseFloat(val), data_referencia: date };
-                }).filter(x => x.codigo_produto.length > 2 && x.custo_total > 0);
-
-                const { error } = await sb.from('historico_custos').upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
-                if(error) { status.style.background = '#ffebee'; status.innerText = "❌ Erro: Verifique se os produtos estão no dicionário."; }
-                else { 
-                    status.style.background = '#e8f5e9'; status.style.color = '#2e7d32';
-                    status.innerHTML = `<b>✅ SUCESSO!</b><br>${payload.length} itens salvos para ${date}.`;
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        async function generateReport() {
-            const s = document.getElementById('dtStart').value, e = document.getElementById('dtEnd').value;
-            const o = document.getElementById('selO').value, f = document.getElementById('selF').value;
-            if(!s || !e) return alert("Selecione as datas!");
-
-            // MUDANÇA AQUI: .select('*, dicionario_produtos(*)') permite ver o custo mesmo sem dicionário
-            let query = sb.from('historico_custos').select('*, dicionario_produtos(*)').gte('data_referencia', s).lte('data_referencia', e);
-            if(o !== 'TODAS') query = query.eq('dicionario_produtos.origem_cod', o);
-            if(f !== 'TODAS') query = query.eq('dicionario_produtos.familia_cod', f);
-
-            const { data, error } = await query.order('data_referencia', { ascending: true });
-            if(!data || data.length === 0) return alert("Nenhum dado encontrado. Verifique se subiu os arquivos nestas datas.");
-
-            const grouped = {};
-            data.forEach(d => { if(!grouped[d.codigo_produto]) grouped[d.codigo_produto] = []; grouped[d.codigo_produto].push(d); });
-
-            let html = '';
-            Object.values(grouped).forEach(p => {
-                const ini = p[0].custo_total, fim = p[p.length-1].custo_total;
-                const varP = ((fim - ini) / ini * 100);
-                html += `<tr><td>${p[0].codigo_produto}</td><td>${p[0].descricao}</td><td>R$ ${ini.toFixed(2)}</td><td>R$ ${fim.toFixed(2)}</td><td>${varP.toFixed(2)}%</td><td><span class="badge ${varP > 5 ? 'alert' : ''}">${varP > 5 ? 'ALTA' : 'OK'}</span></td></tr>`;
-            });
-            document.getElementById('tableBody').innerHTML = html;
-            document.getElementById('reportContent').classList.remove('hidden');
-        }
-
-        function applyCascata(n) {
-            const oVal = document.getElementById('selO').value;
-            const fSel = document.getElementById('selF');
-            if(n === 'O') {
-                fSel.innerHTML = '<option value="TODAS">TODAS</option>';
-                const filtered = masterData.filter(d => oVal === 'TODAS' || d.origem_cod === oVal);
-                [...new Set(filtered.map(d => d.familia_cod))].forEach(id => {
-                    const name = famsMaster.find(x => x.id === id);
-                    if(name) fSel.innerHTML += `<option value="${name.id}">${name.descricao}</option>`;
-                });
-            }
-        }
-    </script>
+  </div>
 </body>
 </html>

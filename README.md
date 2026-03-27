@@ -1,166 +1,68 @@
-# Germani Custos
+📊 Painel de Auditoria de Custos | Germani Alimentos
+Este projeto é uma ferramenta de Business Intelligence (BI) e Data Automation desenvolvida para monitorar a volatilidade de custos de produtos, automatizar a leitura de planilhas complexas e gerar relatórios analíticos integrados ao banco de dados Supabase.
 
-Painel web para **importação** e **auditoria de custos** de produtos, com persistência no Supabase.
+🚀 Funcionalidades Principais
+1. Importação Inteligente (Zero-Format)
+O sistema foi projetado para aceitar as planilhas extraídas diretamente do sistema, sem necessidade de limpeza prévia pelo usuário.
 
-O projeto é uma aplicação front-end enxuta (HTML + CSS + JavaScript puro) centrada em dois fluxos:
+Limpeza de Moeda: O código identifica e remove automaticamente símbolos como R$, pontos de milhar e converte a vírgula decimal para ponto (formato SQL).
 
-1. **Importar planilhas `.xlsx`** com custos por produto para uma data de referência.
-2. **Gerar relatório analítico** por período, origem e família, comparando custo inicial vs. final.
+Mapeamento Flexível: Identifica as colunas necessárias (Produto, Descrição e Custo Total) mesmo que existam colunas desnecessárias ao redor ou espaços extras nos nomes dos cabeçalhos.
 
----
+Controle de Datas: Permite definir uma "Data de Referência" para cada upload, possibilitando a criação de um histórico semanal/mensal.
 
-## Visão geral funcional
+2. Auditoria Analítica em Cascata
+O sistema de filtros foi estruturado em três níveis hierárquicos para facilitar a busca em grandes bases de dados:
 
-### 1) Importação de custos
+Origem: Filtro macro por canal ou tipo de produto.
 
-Na aba **Importação**, o usuário:
+Família: Filtro intermediário que carrega apenas as famílias pertencentes à origem selecionada.
 
-- seleciona uma **data de referência**;
-- envia uma planilha `.xlsx` por clique ou arrastar/soltar;
-- o sistema lê a primeira aba da planilha e tenta identificar colunas de:
-  - `produto` (código);
-  - `custo total`;
-  - `descrição`;
-- transforma os registros em payload e faz `upsert` na tabela `historico_custos` com conflito em `codigo_produto, data_referencia`.
+Agrupamento: Filtro granular que permite isolar grupos específicos de produtos.
 
-Resultado esperado:
+3. Visualização de Dados Profissional
+Gráfico de Volatilidade: Gráfico de barras (Chart.js) que destaca visualmente os aumentos de custo em Vermelho e reduções/estabilidade em Cinza.
 
-- **sucesso**: quantidade de itens salvos para a data;
-- **erro**: mensagem orientando checagem de cadastro no dicionário de produtos.
+Status de Atenção: A tabela de dados destaca automaticamente em vermelho (row-alert) qualquer produto que apresente uma variação superior a 5% entre o início e o fim do período selecionado.
 
-### 2) Relatório analítico
+🛠️ Tecnologias Utilizadas
+Frontend: HTML5, CSS3 (Variáveis modernas) e JavaScript Vanilla.
 
-Na aba **Auditoria**, o usuário informa:
+Banco de Dados: Supabase (PostgreSQL) para armazenamento de históricos e dicionários.
 
-- período inicial e final;
-- filtro de origem (opcional);
-- filtro de família (opcional, em cascata conforme origem).
+Processamento de Planilhas: SheetJS (XLSX) para leitura de arquivos .xlsx no navegador.
 
-A consulta busca dados de `historico_custos` (com relacionamento `dicionario_produtos`) e:
+Gráficos: Chart.js para visualização de tendências.
 
-- agrupa por produto;
-- calcula variação percentual entre primeiro e último custo no período;
-- apresenta tabela com status:
-  - `ALTA` quando variação > 5%;
-  - `OK` caso contrário.
+Ícones: Remix Icon.
 
----
+📂 Estrutura do Banco de Dados (Supabase)
+O sistema opera sobre três tabelas fundamentais:
 
-## Arquitetura técnica
+historico_custos: Armazena os valores de custo atrelados a uma data e um código de produto.
 
-- **Front-end:** arquivo único `index.html`.
-- **Estilo:** CSS embutido.
-- **Lógica:** JavaScript embutido.
-- **Banco/API:** Supabase (`@supabase/supabase-js` via CDN).
-- **Leitura de planilhas:** `xlsx` via CDN.
-- **Ícones:** Remix Icon via CDN.
-- **Chart.js:** carregado via CDN (estrutura preparada para gráfico, mas sem renderização explícita no código atual).
+dicionario_produtos: Tabela mestre que contém as amarrações de cada produto com sua Origem, Família e Agrupamento.
 
----
+categorias_origem / categorias_familia: Tabelas auxiliares para preenchimento dos filtros.
 
-## Estrutura do repositório
+📝 Histórico de Alterações (Changelog)
+v1.0: Estrutura inicial de upload e conexão com Supabase.
 
-```text
-.
-├── index.html   # Aplicação completa (UI + lógica)
-└── README.md    # Este documento
-```
+v1.1: Implementação dos filtros em cascata (Origem -> Família -> Agrupamento).
 
----
+v1.2: Adicionado suporte para limpeza de strings de moeda (R$ 0,00) e correção de erros de salvamento.
 
-## Dependências externas (CDN)
+v1.3: Otimização do gráfico para destacar aumentos de preço e inclusão de badges de status na tabela.
 
-Carregadas diretamente no `index.html`:
+v1.4: Ajuste na consulta SQL (Left Join) para permitir a visualização de produtos que ainda não possuem cadastro completo no dicionário.
 
-- `@supabase/supabase-js@2`
-- `xlsx.full.min.js`
-- `chart.js`
-- `remixicon`
+💡 Como Usar
+Acesse a aba Importação: Selecione a data de referência no calendário.
 
-> Observação: por usar CDN, não há `package.json` nem etapa de build.
+Upload: Arraste a planilha semanal para a área demarcada. Aguarde a mensagem verde de "SUCESSO ABSOLUTO".
 
----
+Auditoria: Vá para a aba Auditoria, selecione o período desejado (Início e Fim) e utilize os filtros para refinar a busca.
 
-## Modelo de dados esperado no Supabase
+Análise: Observe o gráfico para identificar picos de custo e a tabela para conferir os valores exatos e variações percentuais.
 
-Com base no código, a aplicação espera (no mínimo) as tabelas:
-
-- `categorias_origem`
-- `categorias_familia`
-- `dicionario_produtos`
-- `historico_custos`
-
-Campos usados diretamente:
-
-- `historico_custos`
-  - `codigo_produto`
-  - `descricao`
-  - `custo_total`
-  - `data_referencia`
-- `dicionario_produtos`
-  - `origem_cod`
-  - `familia_cod`
-- `categorias_origem` / `categorias_familia`
-  - `id`
-  - `descricao`
-
-Também é assumida chave de conflito para upsert:
-
-- `codigo_produto, data_referencia`
-
----
-
-## Como executar
-
-Como é um front-end estático, basta servir os arquivos localmente.
-
-### Opção 1: Python
-
-```bash
-python3 -m http.server 8080
-```
-
-Acesse:
-
-- `http://localhost:8080`
-
-### Opção 2: abrir direto no navegador
-
-Também pode funcionar abrindo o `index.html` diretamente, mas recomenda-se servidor local para evitar limitações de ambiente.
-
----
-
-## Configuração
-
-As credenciais do Supabase estão definidas no próprio `index.html` nas constantes:
-
-- `S_URL`
-- `S_KEY`
-
-Se necessário, substitua pelos valores do seu projeto Supabase.
-
----
-
-## Pontos de atenção
-
-- **Segurança:** atualmente a `anon key` está no código cliente, o que é comum para apps Supabase client-side, mas exige políticas RLS corretas.
-- **Validação de planilha:** a detecção de colunas depende do nome dos cabeçalhos; variações podem quebrar a importação.
-- **Tratamento de erro:** ainda básico; pode ser expandido para mensagens mais detalhadas por linha.
-- **Gráfico:** existe `<canvas>` e dependência do Chart.js, mas não há plotagem implementada no trecho atual.
-
----
-
-## Melhorias recomendadas
-
-- Extrair JS/CSS para arquivos dedicados.
-- Criar camada de serviços para consultas Supabase.
-- Implementar testes de parsing de planilha.
-- Adicionar autenticação e auditoria por usuário.
-- Padronizar template de planilha de importação.
-- Implementar gráfico de tendência por produto/família.
-
----
-
-## Licença
-
-Sem licença definida no repositório até o momento.
+Nota de Desenvolvimento: Este sistema foi construído focando na autonomia do usuário, eliminando a necessidade de edição manual de arquivos Excel antes do upload.
