@@ -132,7 +132,7 @@ async function handleImport(file) {
     return;
   }
 
-  const { validos, novos_dicionario, novos_por_origem } = preProcessed;
+  const { validos, novos_dicionario, novos_por_origem } = splitImportRows(payload, state.masters);
 
   if (novos_dicionario.length) {
     const { error: dictError } = await api.upsertDicionarioProdutos(novos_dicionario);

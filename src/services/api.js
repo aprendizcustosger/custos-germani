@@ -131,17 +131,19 @@ export const api = {
   async upsertDicionarioProdutos(payload) {
     const sanitized = (payload || []).map(item => ({
       codigo_produto: item.codigo_produto,
-      descricao: String(item.descricao || '').replace(/\s+/g, ' ').trim(),
       origem_id: item.origem_id,
       familia_id: item.familia_id,
       agrupamento_cod: item.agrupamento_cod || null
     }));
 
-    const invalidRow = sanitized.find(item => !item.origem_id || !item.familia_id);
-    if (invalidRow) {
+    const invalid = sanitized.filter(item => !item.origem_id || !item.familia_id);
+    if (invalid.length) {
       return {
         data: null,
-        error: { message: `Produto ${invalidRow.codigo_produto} sem origem_id/familia_id válidos para upsert.` }
+        error: {
+          code: 'VALIDATION_400',
+          message: `Erro 400: origem_id e familia_id são obrigatórios antes do upsert no dicionário (${invalid.length} item(ns) inválido(s)).`
+        }
       };
     }
 
