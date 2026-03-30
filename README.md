@@ -1,68 +1,100 @@
-📊 Painel de Auditoria de Custos | Germani Alimentos
-Este projeto é uma ferramenta de Business Intelligence (BI) e Data Automation desenvolvida para monitorar a volatilidade de custos de produtos, automatizar a leitura de planilhas complexas e gerar relatórios analíticos integrados ao banco de dados Supabase.
+# 📂 DOCUMENTAÇÃO TÉCNICA: MOTOR DE CUSTOS GERMANI
 
-🚀 Funcionalidades Principais
-1. Importação Inteligente (Zero-Format)
-O sistema foi projetado para aceitar as planilhas extraídas diretamente do sistema, sem necessidade de limpeza prévia pelo usuário.
+## 📝 Visão Geral
+Este sistema foi projetado para automatizar a auditoria de custos da **Germani Alimentos**.  
+O objetivo central é transformar planilhas brutas de ERP/SAP em visualizações estratégicas de histórico de custos, sem que o usuário precise tratar o Excel manualmente.
 
-Limpeza de Moeda: O código identifica e remove automaticamente símbolos como R$, pontos de milhar e converte a vírgula decimal para ponto (formato SQL).
+---
 
-Mapeamento Flexível: Identifica as colunas necessárias (Produto, Descrição e Custo Total) mesmo que existam colunas desnecessárias ao redor ou espaços extras nos nomes dos cabeçalhos.
+## 🛠️ 1. O Pacto da Importação (Tolerância Zero a Rigidez)
+O motor de importação deve operar como **Filtro Seletivo**:
 
-Controle de Datas: Permite definir uma "Data de Referência" para cada upload, possibilitando a criação de um histórico semanal/mensal.
+### As 5 colunas obrigatórias
+1. **Produto** (código identificador)
+2. **Descrição** (nome para categorização)
+3. **Custo Variável**
+4. **Custo Direto Fixo**
+5. **Custo Total**
 
-2. Auditoria Analítica em Cascata
-O sistema de filtros foi estruturado em três níveis hierárquicos para facilitar a busca em grandes bases de dados:
+### Regra de Ouro
+Ignore qualquer outra coluna (ex.: `CIF`, `Derivação`, `Data de Cadastro`).  
+Se a planilha tiver 100 colunas extras, o sistema deve ignorar o “lixo” e capturar apenas as 5 colunas acima.  
+**Nunca retornar erro por “coluna inválida” quando as colunas obrigatórias forem encontradas.**
 
-Origem: Filtro macro por canal ou tipo de produto.
+---
 
-Família: Filtro intermediário que carrega apenas as famílias pertencentes à origem selecionada.
+## 🧬 2. Hierarquia de Categorização (Cascata)
+Para o **Pente Fino (Auditoria)** funcionar, aplicar a lógica de afunilamento:
 
-Agrupamento: Filtro granular que permite isolar grupos específicos de produtos.
+### A) ORIGEM (Grande Grupo)
+Define a unidade de produção:
+- **MOAGEM**: tudo que nasce do trigo (farinhas e misturas)
+- **BISCOITOS**: linha de produção de assados
+- **MASSAS**: linha de produção de massas alimentícias
 
-3. Visualização de Dados Profissional
-Gráfico de Volatilidade: Gráfico de barras (Chart.js) que destaca visualmente os aumentos de custo em Vermelho e reduções/estabilidade em Cinza.
+### B) FAMÍLIA (Subgrupo Técnico)
+O sistema usa a descrição do produto para sugerir a família:
+- **M012 (Biscoito Solto Doce)**: descrição contém `BISCOITO`, `ROSQUINHA` ou `WAFER`
+- **M024 (Massa com Ovos)**: descrição contém `MASSA`, `OVOS`, `ESPAGUETE` ou `PARAFUSO`
+- **M000 (Misturas Gerais)**: descrição contém `FARINHA`, `TRIGO` ou `MISTURA`
 
-Status de Atenção: A tabela de dados destaca automaticamente em vermelho (row-alert) qualquer produto que apresente uma variação superior a 5% entre o início e o fim do período selecionado.
+### C) AGRUPAMENTO (Formato)
+Define peso/tipo de embalagem (ex.: `400g`, `5kg`, `Granel`).
 
-🛠️ Tecnologias Utilizadas
-Frontend: HTML5, CSS3 (Variáveis modernas) e JavaScript Vanilla.
+### D) ITEM (SKU Final)
+Produto específico (ex.: `Biscoito Recheado Chocolate 400g`).
 
-Banco de Dados: Supabase (PostgreSQL) para armazenamento de históricos e dicionários.
+---
 
-Processamento de Planilhas: SheetJS (XLSX) para leitura de arquivos .xlsx no navegador.
+## 💾 3. Estrutura do Banco de Dados (Supabase)
+As relações devem ser respeitadas para que os filtros da tela não fiquem vazios.
 
-Gráficos: Chart.js para visualização de tendências.
+| Tabela | Função | Coluna Chave |
+|---|---|---|
+| `origens` | Lista as unidades (Biscoitos, Massas) | `id` (Text) |
+| `familias` | Lista os tipos (M012, M024) | `id` (Text) |
+| `dicionario_produtos` | Onde o produto é “batizado” e categorizado | `codigo_produto`, `origem_id`, `familia_id` |
+| `historico_custos` | Onde os valores de cada mês são salvos | `produto_id`, `custo_total`, `data_importacao` |
 
-Ícones: Remix Icon.
+---
 
-📂 Estrutura do Banco de Dados (Supabase)
-O sistema opera sobre três tabelas fundamentais:
+## 🚩 4. Requisitos de User Experience (UX)
+Para dar segurança ao usuário:
 
-historico_custos: Armazena os valores de custo atrelados a uma data e um código de produto.
+### Feedback instantâneo
+Ao terminar upload, o sistema deve exibir:
 
-dicionario_produtos: Tabela mestre que contém as amarrações de cada produto com sua Origem, Família e Agrupamento.
+> **Sucesso! [X] itens foram importados com sucesso.**
 
-categorias_origem / categorias_familia: Tabelas auxiliares para preenchimento dos filtros.
+### Carga automática
+Ao entrar na tela de Auditoria, o sistema deve buscar imediatamente:
+- lista de **Origens**
+- lista de **Famílias**
 
-📝 Histórico de Alterações (Changelog)
-v1.0: Estrutura inicial de upload e conexão com Supabase.
+Objetivo: os `selects` nunca aparecerem vazios.
 
-v1.1: Implementação dos filtros em cascata (Origem -> Família -> Agrupamento).
+### Flexibilidade de gráfico
+O gráfico de barras deve carregar mesmo com filtro parcial.  
+Exemplo: apenas **Origem** selecionada já deve permitir renderização.
 
-v1.2: Adicionado suporte para limpeza de strings de moeda (R$ 0,00) e correção de erros de salvamento.
+---
 
-v1.3: Otimização do gráfico para destacar aumentos de preço e inclusão de badges de status na tabela.
+## ⚠️ Erros para Nunca Repetir
+1. **Erro de UUID**  
+   Nunca enviar texto `"PENDENTE"` para coluna de ID.  
+   Use ID real (`M000`, `M012`, etc.) ou `null`.
 
-v1.4: Ajuste na consulta SQL (Left Join) para permitir a visualização de produtos que ainda não possuem cadastro completo no dicionário.
+2. **Erro de Sintaxe**  
+   Não declarar variáveis com o mesmo nome (ex.: `suggestion`) no mesmo escopo.
 
-💡 Como Usar
-Acesse a aba Importação: Selecione a data de referência no calendário.
+3. **Erro de Cache/Atualização de dados**  
+   Sempre recarregar dados do Supabase após alterações de banco para refletir na interface.
 
-Upload: Arraste a planilha semanal para a área demarcada. Aguarde a mensagem verde de "SUCESSO ABSOLUTO".
+---
 
-Auditoria: Vá para a aba Auditoria, selecione o período desejado (Início e Fim) e utilize os filtros para refinar a busca.
-
-Análise: Observe o gráfico para identificar picos de custo e a tabela para conferir os valores exatos e variações percentuais.
-
-Nota de Desenvolvimento: Este sistema foi construído focando na autonomia do usuário, eliminando a necessidade de edição manual de arquivos Excel antes do upload.
+## ✅ Princípio Operacional
+O sistema prioriza:
+- robustez com dados reais de ERP/SAP,
+- tolerância a planilhas imperfeitas,
+- clareza de feedback para o usuário final,
+- e consistência entre importação, categorização e auditoria.
