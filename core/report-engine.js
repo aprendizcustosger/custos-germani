@@ -32,6 +32,11 @@ export function calculateCascadeOptions(state, masters) {
 }
 
 export function buildReportRows(historico, masters = { origens: [], familias: [], agrupamentos: [] }) {
+  const getDictionary = (item) => {
+    if (Array.isArray(item?.dicionario_produtos)) return item.dicionario_produtos[0] || {};
+    return item?.dicionario_produtos || {};
+  };
+
   const grouped = {};
   historico.forEach(item => {
     if (!grouped[item.codigo_produto]) grouped[item.codigo_produto] = [];
@@ -44,7 +49,7 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
     const ini = Number(first.custo_total || 0);
     const fim = Number(last.custo_total || 0);
     const variacao = ini > 0 ? ((fim - ini) / ini) * 100 : 0;
-    const dict = last.dicionario_produtos || {};
+    const dict = getDictionary(last);
     const origemCod = String(dict.origem_id || '');
     const familiaCod = String(dict.familia_id || '');
     const agrupamentoCod = String(dict.agrupamento_cod || '');
