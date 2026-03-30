@@ -32,8 +32,8 @@ function isRelationshipCacheError(error) {
 function applyCascadeFilterInMemory(rows, filters) {
   return (rows || []).filter(item => {
     const dict = item.dicionario_produtos;
-    if (filters.origem !== 'TODAS' && String(dict?.origem_cod) !== String(filters.origem)) return false;
-    if (filters.familia !== 'TODAS' && String(dict?.familia_cod) !== String(filters.familia)) return false;
+    if (filters.origem !== 'TODAS' && String(dict?.origem_id) !== String(filters.origem)) return false;
+    if (filters.familia !== 'TODAS' && String(dict?.familia_id) !== String(filters.familia)) return false;
     if (filters.agrupamento !== 'TODOS' && String(dict?.agrupamento_cod) !== String(filters.agrupamento)) return false;
     return true;
   });
@@ -53,7 +53,7 @@ async function getHistoricoWithClientFallback(filters) {
   const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
   const { data: dicionarioRows, error: dicionarioError } = await sb
     .from(TABLES.dicionario)
-    .select('codigo_produto, origem_cod, familia_cod, agrupamento_cod')
+    .select('codigo_produto, origem_id, familia_id, agrupamento_cod')
     .in('codigo_produto', codigos);
 
   if (dicionarioError) return { data: null, error: dicionarioError };
@@ -70,12 +70,12 @@ async function getHistoricoWithClientFallback(filters) {
 async function getHistoricoWithRelations(filters) {
   let query = sb
     .from(TABLES.historico)
-    .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp, dicionario_produtos!left(codigo_produto, origem_cod, familia_cod, agrupamento_cod)')
+    .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp, dicionario_produtos!left(codigo_produto, origem_id, familia_id, agrupamento_cod)')
     .gte('data_referencia', filters.start)
     .lte('data_referencia', filters.end);
 
-  if (filters.origem !== 'TODAS') query = query.eq('dicionario_produtos.origem_cod', filters.origem);
-  if (filters.familia !== 'TODAS') query = query.eq('dicionario_produtos.familia_cod', filters.familia);
+  if (filters.origem !== 'TODAS') query = query.eq('dicionario_produtos.origem_id', filters.origem);
+  if (filters.familia !== 'TODAS') query = query.eq('dicionario_produtos.familia_id', filters.familia);
   if (filters.agrupamento !== 'TODOS') query = query.eq('dicionario_produtos.agrupamento_cod', filters.agrupamento);
 
   return query.order('data_referencia', { ascending: true });
@@ -131,10 +131,19 @@ export const api = {
   async upsertDicionarioProdutos(payload) {
     const sanitized = (payload || []).map(item => ({
       codigo_produto: item.codigo_produto,
-      origem_cod: item.origem_cod || null,
-      familia_cod: item.familia_cod || null,
+      descricao: String(item.descricao || '').replace(/\s+/g, ' ').trim(),
+      origem_id: item.origem_id,
+      familia_id: item.familia_id,
       agrupamento_cod: item.agrupamento_cod || null
     }));
+
+    const invalidRow = sanitized.find(item => !item.origem_id || !item.familia_id);
+    if (invalidRow) {
+      return {
+        data: null,
+        error: { message: `Produto ${invalidRow.codigo_produto} sem origem_id/familia_id válidos para upsert.` }
+      };
+    }
 
     return sb.from(TABLES.dicionario).upsert(sanitized, { onConflict: 'codigo_produto' });
   },

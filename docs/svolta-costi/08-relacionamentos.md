@@ -5,8 +5,8 @@ Os relacionamentos garantem consistência dos filtros e da auditoria.
 
 | Tabela Origem | Campo FK | Tabela Destino | Campo PK | ON DELETE |
 |---------------|----------|----------------|----------|-----------|
-| dicionario_produtos | origem_cod | categorias_origem | id | RESTRICT |
-| dicionario_produtos | familia_cod | categorias_familia | id | RESTRICT |
+| dicionario_produtos | origem_id | categorias_origem | id | RESTRICT |
+| dicionario_produtos | familia_id | categorias_familia | id | RESTRICT |
 | dicionario_produtos | agrupamento_cod | categorias_agrupamento | id | RESTRICT |
 | historico_custos | codigo_produto | dicionario_produtos | codigo_produto | RESTRICT |
 

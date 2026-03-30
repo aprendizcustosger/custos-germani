@@ -23,6 +23,6 @@ Esta view recomendada facilita auditorias recorrentes.
 | codigo_produto | historico_custos | Produto |
 | data_referencia | historico_custos | Data |
 | custo_total | historico_custos | Valor |
-| origem_cod | dicionario_produtos | Origem |
-| familia_cod | dicionario_produtos | Família |
+| origem_id | dicionario_produtos | Origem |
+| familia_id | dicionario_produtos | Família |
 | agrupamento_cod | dicionario_produtos | Agrupamento |

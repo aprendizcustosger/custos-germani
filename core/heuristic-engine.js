@@ -7,6 +7,29 @@ const KEYWORDS = {
   massas: ['espaguete', 'parafuso', 'ninho', 'ovos']
 };
 
+const AUTO_FAMILY_RULES = [
+  {
+    origem: 'BISCOITOS',
+    categoriaId: 'M012',
+    familiaLabel: 'BISCOITO SOLTO DOCE',
+    termos: ['biscoito', 'rosquinha']
+  },
+  {
+    origem: 'MASSAS',
+    categoriaId: 'M024',
+    familiaLabel: 'MASSA COM OVOS',
+    termos: ['massa', 'ovos', 'espaguete']
+  },
+  {
+    origem: 'MOAGEM',
+    categoriaId: 'M000',
+    familiaLabel: 'MISTURAS GERAIS',
+    termos: ['mistura', 'farinha']
+  }
+];
+
+const DEFAULT_CATEGORY_ID = 'M000';
+
 const PACK_REGEX = /(\d+\s?(g|kg)|cx)\b/i;
 
 export function normalizeProductCode(value) {
@@ -24,6 +47,10 @@ export function normalizeProductCode(value) {
 function findMasterIdByDescription(options, label) {
   const target = normalizeText(label);
   return (options || []).find(item => normalizeText(item.descricao) === target)?.id || null;
+}
+
+function findAutoRule(normalizedDesc) {
+  return AUTO_FAMILY_RULES.find(rule => rule.termos.some(termo => normalizedDesc.includes(termo))) || null;
 }
 
 function inferOrigem(normalizedDesc, codigoProduto) {
@@ -49,48 +76,53 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
   const codigoProduto = normalizeProductCode(product.codigo_produto);
   const normalizedDesc = normalizeText(product.descricao || '');
 
-  const origemHint = inferOrigem(normalizedDesc, codigoProduto);
-  const familiaHint = origemHint;
+  const matchedRule = findAutoRule(normalizedDesc);
+  const categoriaId = matchedRule?.categoriaId || DEFAULT_CATEGORY_ID;
+  const origemHint = matchedRule?.origem || inferOrigem(normalizedDesc, codigoProduto);
+  const familiaHint = matchedRule?.familiaLabel || 'MISTURAS GERAIS';
   const agrupamentoHint = inferAgrupamento(normalizedDesc, origemHint);
-
-  const origem_cod = findMasterIdByDescription(masters.origens, origemHint);
-  const familia_cod = findMasterIdByDescription(masters.familias, familiaHint);
-  const agrupamento_cod = findMasterIdByDescription(masters.agrupamentos, agrupamentoHint);
+  const agrupamento_cod = findMasterIdByDescription(masters.agrupamentos, agrupamentoHint) || DEFAULT_CATEGORY_ID;
 
   return {
-    origem_cod: origem_cod || null,
-    familia_cod: familia_cod || null,
-    agrupamento_cod: agrupamento_cod || null,
+    origem_id: categoriaId,
+    familia_id: categoriaId,
+    agrupamento_cod,
     origem_hint: origemHint,
     familia_hint: familiaHint,
     agrupamento_hint: agrupamentoHint,
-    status: origem_cod && familia_cod && (agrupamento_cod || agrupamentoHint === 'PENDENTE') ? 'SUGERIDO' : 'PENDENTE'
+    status: 'SUGERIDO'
   };
 }
 
 export function splitImportRows(rows, masters = { dicionario: [] }) {
   const dictByCode = new Map((masters.dicionario || []).map(item => [normalizeProductCode(item.codigo_produto), item]));
-  const pendingOrigem = findMasterIdByDescription(masters.origens, 'PENDENTE');
-  const pendingFamilia = findMasterIdByDescription(masters.familias, 'PENDENTE');
-  const pendingAgrupamento = findMasterIdByDescription(masters.agrupamentos, 'PENDENTE');
+  const pendingOrigem = DEFAULT_CATEGORY_ID;
+  const pendingFamilia = DEFAULT_CATEGORY_ID;
+  const pendingAgrupamento = DEFAULT_CATEGORY_ID;
 
   const validos = [];
   const novos_dicionario = [];
+  const novosPorOrigem = {};
+  const novosPorFamilia = {};
 
   rows.forEach(item => {
     const codigo = normalizeProductCode(item.codigo_produto);
     const normalizedItem = { ...item, codigo_produto: codigo };
+    const suggestion = suggestCategory(normalizedItem, masters);
     validos.push(normalizedItem);
+
+    novosPorOrigem[suggestion.origem_hint] = (novosPorOrigem[suggestion.origem_hint] || 0) + 1;
+    novosPorFamilia[suggestion.familia_hint] = (novosPorFamilia[suggestion.familia_hint] || 0) + 1;
 
     if (dictByCode.has(codigo)) return;
     if (novos_dicionario.some(x => normalizeProductCode(x.codigo_produto) === codigo)) return;
 
-    const suggestion = suggestCategory(normalizedItem, masters);
     novos_dicionario.push({
       codigo_produto: codigo,
-      origem_cod: suggestion.origem_cod || pendingOrigem,
-      familia_cod: suggestion.familia_cod || pendingFamilia,
-      agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || 'PENDENTE',
+      descricao: String(normalizedItem.descricao || '').replace(/\s+/g, ' ').trim(),
+      origem_id: suggestion.origem_id || pendingOrigem,
+      familia_id: suggestion.familia_id || pendingFamilia,
+      agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento,
       sugestao_origem: suggestion.origem_hint,
       sugestao_familia: suggestion.familia_hint,
       sugestao_agrupamento: suggestion.agrupamento_hint,
@@ -98,5 +130,5 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     });
   });
 
-  return { validos, novos_dicionario };
+  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem, novos_por_familia: novosPorFamilia };
 }
