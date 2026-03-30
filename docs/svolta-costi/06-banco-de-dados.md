@@ -39,8 +39,8 @@ Esta tabela relaciona produto à hierarquia.
 | Campo | Tipo | Nulo | Chave | Default | Descrição |
 |-------|------|------|-------|---------|-----------|
 | codigo_produto | text | NÃO | PK | | Código do produto |
-| origem_cod | uuid | SIM | FK | | Ref. `categorias_origem.id` |
-| familia_cod | uuid | SIM | FK | | Ref. `categorias_familia.id` |
+| origem_id | uuid | SIM | FK | | Ref. `categorias_origem.id` |
+| familia_id | uuid | SIM | FK | | Ref. `categorias_familia.id` |
 | agrupamento_cod | uuid/text | SIM | FK | | Ref. agrupamento |
 
 ## 6.6 historico_custos — Fato de custos
