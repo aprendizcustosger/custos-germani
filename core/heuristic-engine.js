@@ -110,18 +110,18 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
   const familiaHint = origemHint;
   const agrupamentoHint = inferAgrupamento(normalizedDesc, origemHint);
 
-  const origem_id = findMasterIdByDescription(masters.origens, origemHint) || pendingOrigem;
-  const familia_id = findMasterIdByDescription(masters.familias, familiaHint) || pendingFamilia;
+  const origem_id = findMasterIdByDescription(masters.origens, origemHint);
+  const familia_id = findMasterIdByDescription(masters.familias, familiaHint);
   const agrupamento_cod = findMasterIdByDescription(masters.agrupamentos, agrupamentoHint);
 
   return {
-    origem_id,
-    familia_id,
-    agrupamento_cod: agrupamento_cod || pendingAgrupamento,
+    origem_id: origem_id || null,
+    familia_id: familia_id || null,
+    agrupamento_cod: agrupamento_cod || null,
     origem_hint: origemHint,
     familia_hint: familiaHint,
     agrupamento_hint: agrupamentoHint,
-    status: (origemHint === 'PENDENTE' && familiaHint === 'PENDENTE') ? 'PENDENTE' : 'SUGERIDO'
+    status: origem_id && familia_id && (agrupamento_cod || agrupamentoHint === 'PENDENTE') ? 'SUGERIDO' : 'PENDENTE'
   };
 }
 
@@ -134,7 +134,6 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
   const validos = [];
   const novos_dicionario = [];
   const novosPorOrigem = {};
-  const novosPorFamilia = {};
 
   rows.forEach(item => {
     const codigo = normalizeProductCode(item.codigo_produto);
@@ -146,11 +145,9 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
 
     const suggestion = suggestCategory(normalizedItem, masters);
     novosPorOrigem[suggestion.origem_hint] = (novosPorOrigem[suggestion.origem_hint] || 0) + 1;
-    novosPorFamilia[suggestion.familia_hint] = (novosPorFamilia[suggestion.familia_hint] || 0) + 1;
 
     novos_dicionario.push({
       codigo_produto: codigo,
-      descricao: String(normalizedItem.descricao || '').replace(/\s+/g, ' ').trim(),
       origem_id: suggestion.origem_id || pendingOrigem,
       familia_id: suggestion.familia_id || pendingFamilia,
       agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || 'PENDENTE',
@@ -161,5 +158,5 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     });
   });
 
-  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem, novos_por_familia: novosPorFamilia };
+  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem };
 }
