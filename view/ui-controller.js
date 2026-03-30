@@ -113,7 +113,17 @@ async function handleImport(file) {
 
   dom.dropZone.classList.add('processing');
   const rows = readWorkbook(await file.arrayBuffer());
-  let { headers, mapping } = scanHeaders(rows);
+  let { headers, mapping, rejectedHeaders } = scanHeaders(rows);
+
+  if (rejectedHeaders.length) {
+    dom.dropZone.classList.remove('processing');
+    Swal.fire({
+      icon: 'error',
+      title: 'Colunas inválidas na planilha',
+      html: `A importação aceita somente estas 5 colunas: <b>Produto</b>, <b>Descrição</b>, <b>Custo Variável</b>, <b>Custo Direto Fixo</b> e <b>Custo Total</b>.<br/><br/>Colunas rejeitadas: ${rejectedHeaders.join(', ')}`
+    });
+    return;
+  }
 
   if (countValidMappedColumns(mapping) < REQUIRED_FIELDS.length) {
     const manualMap = await requestManualMapping(headers, mapping);

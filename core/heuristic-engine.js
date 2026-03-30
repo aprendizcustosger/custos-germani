@@ -7,25 +7,10 @@ const KEYWORDS = {
   massas: ['espaguete', 'parafuso', 'ninho', 'ovos']
 };
 
-const AUTO_FAMILY_RULES = [
-  {
-    origem: 'BISCOITOS',
-    familiaId: 'M012',
-    familiaLabel: 'BISCOITO SOLTO DOCE',
-    termos: ['biscoito', 'wafer', 'recheado', 'rosquinha']
-  },
-  {
-    origem: 'MASSAS',
-    familiaId: 'M024',
-    familiaLabel: 'MASSA COM OVOS',
-    termos: ['espaguete', 'parafuso', 'penne', 'ovos']
-  },
-  {
-    origem: 'MOAGEM',
-    familiaId: 'M000',
-    familiaLabel: 'MISTURAS GERAIS',
-    termos: ['farinha', 'trigo', 'mistura']
-  }
+const GERMANI_RULES = [
+  { id: 'M012', origem: 'BISCOITOS', familiaLabel: 'BISCOITO SOLTO DOCE', termos: ['biscoito', 'rosquinha'] },
+  { id: 'M024', origem: 'MASSAS', familiaLabel: 'MASSA COM OVOS', termos: ['massa', 'ovos'] },
+  { id: 'M000', origem: 'MOAGEM', familiaLabel: 'MISTURAS GERAIS', termos: ['mistura', 'farinha'] }
 ];
 
 const PACK_REGEX = /(\d+\s?(g|kg)|cx)\b/i;
@@ -53,14 +38,13 @@ function findPendingId(options) {
     || 'PENDENTE';
 }
 
-function findFamilyId(masters, rule) {
-  const ids = new Set((masters.familias || []).map(item => String(item.id)));
-  if (ids.has(String(rule.familiaId))) return rule.familiaId;
-  return findMasterIdByDescription(masters.familias, rule.familiaLabel) || findPendingId(masters.familias);
+function findMasterIdByFixedCode(options, fixedCode) {
+  const target = String(fixedCode || '').trim().toUpperCase();
+  return (options || []).find(item => String(item.id || '').trim().toUpperCase() === target)?.id || null;
 }
 
 function findAutoRule(normalizedDesc) {
-  return AUTO_FAMILY_RULES.find(rule => rule.termos.some(termo => normalizedDesc.includes(termo))) || null;
+  return GERMANI_RULES.find(rule => rule.termos.some(termo => normalizedDesc.includes(termo))) || GERMANI_RULES[2];
 }
 
 function inferOrigem(normalizedDesc, codigoProduto) {
@@ -87,13 +71,14 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
   const normalizedDesc = normalizeText(product.descricao || '');
 
   const matchedRule = findAutoRule(normalizedDesc);
-  const pendingOrigem = findPendingId(masters.origens);
-  const pendingFamilia = findPendingId(masters.familias);
   const pendingAgrupamento = findPendingId(masters.agrupamentos);
 
   if (matchedRule) {
-    const origem_id = findMasterIdByDescription(masters.origens, matchedRule.origem) || pendingOrigem;
-    const familia_id = findFamilyId(masters, matchedRule);
+    const fixedId = findMasterIdByFixedCode(masters.origens, matchedRule.id)
+      || findMasterIdByFixedCode(masters.familias, matchedRule.id)
+      || matchedRule.id;
+    const origem_id = fixedId;
+    const familia_id = fixedId;
 
     return {
       origem_id,
@@ -127,13 +112,12 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
 
 export function splitImportRows(rows, masters = { dicionario: [] }) {
   const dictByCode = new Map((masters.dicionario || []).map(item => [normalizeProductCode(item.codigo_produto), item]));
-  const pendingOrigem = findPendingId(masters.origens);
-  const pendingFamilia = findPendingId(masters.familias);
   const pendingAgrupamento = findPendingId(masters.agrupamentos);
 
   const validos = [];
   const novos_dicionario = [];
   const novosPorOrigem = {};
+  const novosPorFamilia = {};
 
   rows.forEach(item => {
     const codigo = normalizeProductCode(item.codigo_produto);
@@ -147,13 +131,10 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     if (dictByCode.has(codigo)) return;
     if (novos_dicionario.some(x => normalizeProductCode(x.codigo_produto) === codigo)) return;
 
-    const suggestion = suggestCategory(normalizedItem, masters);
-    novosPorOrigem[suggestion.origem_hint] = (novosPorOrigem[suggestion.origem_hint] || 0) + 1;
-
     novos_dicionario.push({
       codigo_produto: codigo,
-      origem_id: suggestion.origem_id || pendingOrigem,
-      familia_id: suggestion.familia_id || pendingFamilia,
+      origem_id: suggestion.origem_id || 'M000',
+      familia_id: suggestion.familia_id || 'M000',
       agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || 'PENDENTE',
       sugestao_origem: suggestion.origem_hint,
       sugestao_familia: suggestion.familia_hint,
@@ -162,5 +143,5 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     });
   });
 
-  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem };
+  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem, novos_por_familia: novosPorFamilia };
 }
