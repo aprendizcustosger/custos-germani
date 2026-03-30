@@ -205,7 +205,7 @@ async function runReport() {
     return;
   }
 
-  const rows = buildReportRows(data).sort((a, b) => b.variacao - a.variacao);
+  const rows = buildReportRows(data, state.masters).sort((a, b) => b.variacao - a.variacao);
   const kpis = calculateKpis(rows);
 
   dom.kpiItens.textContent = kpis.totalItens;
