@@ -2,6 +2,7 @@
 import { api } from '../src/services/api.js';
 import { readWorkbook, scanHeaders, mapRowsToPayload, countValidMappedColumns, REQUIRED_FIELDS } from '../core/spreadsheet-engine.js';
 import { fillSelect, calculateCascadeOptions, buildReportRows, calculateKpis } from '../core/report-engine.js';
+import { splitImportRows } from '../core/heuristic-engine.js';
 
 const state = {
   user: null,
@@ -130,26 +131,32 @@ async function handleImport(file) {
     return;
   }
 
-  const dictCodes = new Set(state.masters.dicionario.map(x => String(x.codigo_produto).trim()));
-  const missingCodes = [...new Set(payload.map(x => x.codigo_produto).filter(code => !dictCodes.has(String(code).trim())))];
-  if (missingCodes.length) {
-    dom.dropZone.classList.remove('processing');
+  const { validos, novos_dicionario } = splitImportRows(payload, state.masters);
+
+  if (novos_dicionario.length) {
+    const { error: dictError } = await api.upsertDicionarioProdutos(novos_dicionario);
+    if (dictError) {
+      dom.dropZone.classList.remove('processing');
+      Swal.fire({ icon: 'error', title: 'Falha ao classificar novos produtos', text: dictError.message });
+      return;
+    }
+
+    state.masters = await api.getMasters();
     Swal.fire({
-      icon: 'error',
-      title: 'Produtos não cadastrados',
-      html: `<p>Cadastre no dicionário antes de importar:</p><pre style="text-align:left;max-height:180px;overflow:auto;">${missingCodes.join('\n')}</pre>`
+      icon: 'warning',
+      title: 'Atenção',
+      html: `Atenção: <b>${novos_dicionario.length}</b> novos produtos foram detectados e classificados como PENDENTE. <br/>Clique em Auditoria para revisar as amarrações.`
     });
-    return;
   }
 
-  const { error } = await api.upsertHistoricoCustos(payload);
+  const { error } = await api.upsertHistoricoCustos(validos);
   dom.dropZone.classList.remove('processing');
   if (error) {
     Swal.fire({ icon: 'error', title: 'Falha na gravação', text: error.message });
     return;
   }
 
-  Swal.fire({ icon: 'success', title: 'Importação concluída', html: `<b>${payload.length}</b> itens salvos em <b>${refDate}</b>.` });
+  Swal.fire({ icon: 'success', title: 'Importação concluída', html: `<b>${validos.length}</b> itens salvos em <b>${refDate}</b>.` });
 }
 
 async function requestManualMapping(headers, current) {
@@ -205,7 +212,7 @@ async function runReport() {
     return;
   }
 
-  const rows = buildReportRows(data).sort((a, b) => b.variacao - a.variacao);
+  const rows = buildReportRows(data, state.masters).sort((a, b) => b.variacao - a.variacao);
   const kpis = calculateKpis(rows);
 
   dom.kpiItens.textContent = kpis.totalItens;

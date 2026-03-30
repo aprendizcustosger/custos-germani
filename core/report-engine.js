@@ -31,7 +31,7 @@ export function calculateCascadeOptions(state, masters) {
   return { familyOptions, groupOptions };
 }
 
-export function buildReportRows(historico) {
+export function buildReportRows(historico, masters = { origens: [], familias: [], agrupamentos: [] }) {
   const grouped = {};
   historico.forEach(item => {
     if (!grouped[item.codigo_produto]) grouped[item.codigo_produto] = [];
@@ -45,13 +45,20 @@ export function buildReportRows(historico) {
     const fim = Number(last.custo_total || 0);
     const variacao = ini > 0 ? ((fim - ini) / ini) * 100 : 0;
     const dict = last.dicionario_produtos || {};
+    const origemCod = String(dict.origem_cod || '');
+    const familiaCod = String(dict.familia_cod || '');
+    const agrupamentoCod = String(dict.agrupamento_cod || '');
+
+    const origem = masters.origens.find(item => String(item.id) === origemCod)?.descricao || dict.origem_cod || '-';
+    const familia = masters.familias.find(item => String(item.id) === familiaCod)?.descricao || dict.familia_cod || '-';
+    const agrupamento = masters.agrupamentos.find(item => String(item.id) === agrupamentoCod)?.descricao || dict.agrupamento_cod || '-';
 
     return {
       codigo: first.codigo_produto,
       descricao: last.descricao || '-',
-      origem: dict.origem_cod || '-',
-      familia: dict.familia_cod || '-',
-      agrupamento: dict.agrupamento_cod || '-',
+      origem,
+      familia,
+      agrupamento,
       inicial: ini,
       final: fim,
       variacao,
