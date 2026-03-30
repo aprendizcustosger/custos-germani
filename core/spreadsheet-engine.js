@@ -79,7 +79,6 @@ export function scanHeaders(rows) {
   const headers = rows.length ? Object.keys(rows[0]) : [];
   const normalizedHeaders = headers.map(h => ({ original: h, key: normalizeText(h).replace(/\s+/g, '') }));
   const allowedHeaders = normalizedHeaders.filter(h => ALLOWED_HEADER_MAP[h.key]);
-  const rejectedHeaders = normalizedHeaders.filter(h => !ALLOWED_HEADER_MAP[h.key]).map(h => h.original);
 
   const mapping = { produto: null, descricao: null, custo_variavel: null, custo_direto_fixo: null, custo_total: null };
   allowedHeaders.forEach(header => {
@@ -88,9 +87,9 @@ export function scanHeaders(rows) {
   });
 
   return {
-    headers: allowedHeaders.map(h => h.original),
+    headers,
     mapping,
-    rejectedHeaders
+    rejectedHeaders: []
   };
 }
 
