@@ -21,6 +21,19 @@ function findHeaderRowIndex(matrixRows) {
   );
 }
 
+
+function normalizeCodigoProduto(value) {
+  const raw = String(value || '').trim().replace(',', '.');
+  if (!raw) return '';
+
+  if (/^\d+(\.\d+)?e[+-]?\d+$/i.test(raw)) {
+    const num = Number(raw);
+    if (Number.isFinite(num)) return num.toLocaleString('fullwide', { useGrouping: false });
+  }
+
+  return raw.replace(/\s+/g, '');
+}
+
 export function parseCurrencyBRL(input) {
   const cleaned = String(input || '0')
     .replace(/r\$/gi, '')
@@ -71,7 +84,7 @@ export function scanHeaders(rows) {
 
 export function mapRowsToPayload(rows, mapping, dataReferencia, userId) {
   return rows.map(row => ({
-    codigo_produto: String(row[mapping.produto] || '').trim(),
+    codigo_produto: normalizeCodigoProduto(row[mapping.produto]),
     descricao: String(row[mapping.descricao] || '').trim(),
     custo_total: parseCurrencyBRL(row[mapping.custo_total]),
     data_referencia: dataReferencia,

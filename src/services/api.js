@@ -1,5 +1,6 @@
 /* Responsabilidade: camada única de acesso ao Supabase (Auth + leitura + escrita). */
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { suggestCategory as heuristicSuggestCategory } from '../../core/heuristic-engine.js';
 
 const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
@@ -124,6 +125,22 @@ export const api = {
 
   async upsertHistoricoCustos(payload) {
     return sb.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
+  },
+
+
+  async upsertDicionarioProdutos(payload) {
+    const sanitized = (payload || []).map(item => ({
+      codigo_produto: item.codigo_produto,
+      origem_cod: item.origem_cod || null,
+      familia_cod: item.familia_cod || null,
+      agrupamento_cod: item.agrupamento_cod || null
+    }));
+
+    return sb.from(TABLES.dicionario).upsert(sanitized, { onConflict: 'codigo_produto' });
+  },
+
+  async suggestCategory(product, masters) {
+    return { data: heuristicSuggestCategory(product, masters), error: null };
   },
 
   async getHistorico(filters) {
