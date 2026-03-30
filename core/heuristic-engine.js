@@ -138,7 +138,11 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
   rows.forEach(item => {
     const codigo = normalizeProductCode(item.codigo_produto);
     const normalizedItem = { ...item, codigo_produto: codigo };
+    const suggestion = suggestCategory(normalizedItem, masters);
     validos.push(normalizedItem);
+
+    novosPorOrigem[suggestion.origem_hint] = (novosPorOrigem[suggestion.origem_hint] || 0) + 1;
+    novosPorFamilia[suggestion.familia_hint] = (novosPorFamilia[suggestion.familia_hint] || 0) + 1;
 
     if (dictByCode.has(codigo)) return;
     if (novos_dicionario.some(x => normalizeProductCode(x.codigo_produto) === codigo)) return;
