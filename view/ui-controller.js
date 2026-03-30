@@ -42,7 +42,7 @@ async function init() {
   bindUpload();
   bindFilters();
   autoAuthenticate();
-  await loadMasters();
+  await loadMasters({ force: true });
 }
 
 function autoAuthenticate() {
@@ -50,18 +50,22 @@ function autoAuthenticate() {
   dom.userBox.textContent = 'Usuário: modo local';
 }
 
-async function loadMasters() {
+async function loadMasters(options = {}) {
+  const { force = false } = options;
   const masters = await api.getMasters();
   if (masters.error) {
     showToast('error', `Falha ao carregar tabelas de apoio: ${masters.error.message}`);
   }
+
+  if (!force && state.masters.dicionario.length && !masters.dicionario?.length) return;
+
   state.masters = {
     origens: masters.origens || [],
     familias: masters.familias || [],
     agrupamentos: masters.agrupamentos || [],
     dicionario: masters.dicionario || []
   };
-  fillSelect(dom.selO, state.masters.origens.map(x => ({ value: String(x.id), label: x.descricao })), { value: 'TODAS', label: 'TODAS' });
+  fillSelect(dom.selO, state.masters.origens.map(x => ({ value: String(x.id), label: x.descricao })), { value: 'TODAS', label: 'TODAS' }, dom.selO.value || 'TODAS');
   refreshCascade();
 }
 
@@ -73,6 +77,9 @@ function bindNavigation() {
       btn.classList.add('active');
       Object.values(dom.views).forEach(v => v.classList.add('hidden'));
       dom.views[view].classList.remove('hidden');
+      if (view === 'report') {
+        loadMasters({ force: true });
+      }
     });
   });
 }

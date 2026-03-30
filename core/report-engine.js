@@ -13,7 +13,13 @@ export function fillSelect(select, options, first, selectedValue = null) {
 }
 
 export function calculateCascadeOptions(state, masters) {
-  const byOrigem = masters.dicionario.filter(item =>
+  const dictionary = (masters.dicionario || []).map(item => ({
+    ...item,
+    codigo_produto: item?.codigo_produto ?? item?.produto ?? item?.codigo ?? null,
+    descricao: item?.descricao ?? item?.nome ?? item?.produto_descricao ?? null
+  }));
+
+  const byOrigem = dictionary.filter(item =>
     state.origem === 'TODAS' || String(item.origem_id) === String(state.origem)
   );
 
@@ -21,7 +27,7 @@ export function calculateCascadeOptions(state, masters) {
   const familyOptions = familyIds.map(id => {
     const fam = masters.familias.find(f => String(f.id) === id);
     return { value: id, label: fam?.descricao || id };
-  });
+  }).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
   const byFamilia = byOrigem.filter(item =>
     state.familia === 'TODAS' || String(item.familia_id) === String(state.familia)
@@ -31,7 +37,7 @@ export function calculateCascadeOptions(state, masters) {
   const groupOptions = groupIds.map(id => {
     const grp = masters.agrupamentos.find(g => String(g.id) === id);
     return { value: id, label: grp?.descricao || id };
-  });
+  }).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
   const productBase = byFamilia.filter(item =>
     state.agrupamento === 'TODOS' || String(item.agrupamento_cod) === String(state.agrupamento)
