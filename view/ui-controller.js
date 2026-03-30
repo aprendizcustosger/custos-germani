@@ -115,7 +115,7 @@ async function handleImport(file) {
   const rows = readWorkbook(await file.arrayBuffer());
   let { headers, mapping } = scanHeaders(rows);
 
-  if (countValidMappedColumns(mapping) < 3) {
+  if (countValidMappedColumns(mapping) < REQUIRED_FIELDS.length) {
     const manualMap = await requestManualMapping(headers, mapping);
     if (!manualMap) {
       dom.dropZone.classList.remove('processing');
@@ -125,7 +125,8 @@ async function handleImport(file) {
   }
 
   const payload = mapRowsToPayload(rows, mapping, refDate, state.user?.id || null);
-  const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping));
+  const preProcessed = splitImportRows(payload, state.masters);
+  const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping), preProcessed.novos_por_familia || {});
   if (!confirmed) {
     dom.dropZone.classList.remove('processing');
     return;
@@ -184,6 +185,8 @@ async function requestManualMapping(headers, current) {
     preConfirm: () => ({
       produto: document.getElementById('map_produto').value,
       descricao: document.getElementById('map_descricao').value,
+      custo_variavel: document.getElementById('map_custo_variavel').value,
+      custo_direto_fixo: document.getElementById('map_custo_direto_fixo').value,
       custo_total: document.getElementById('map_custo_total').value
     })
   });
@@ -192,11 +195,16 @@ async function requestManualMapping(headers, current) {
   return { ...current, ...result.value };
 }
 
-async function confirmImport(totalProdutos, totalColunasValidas) {
+async function confirmImport(totalProdutos, totalColunasValidas, familySummary = {}) {
+  const summaryHtml = Object.entries(familySummary)
+    .sort((a, b) => b[1] - a[1])
+    .map(([familia, total]) => `• <b>${familia}</b>: ${total}`)
+    .join('<br/>');
+
   const result = await Swal.fire({
     icon: 'question',
     title: 'Resumo da detecção',
-    html: `Detectamos <b>${totalProdutos}</b> produtos e <b>${totalColunasValidas}</b> colunas válidas.<br/>Deseja prosseguir?`,
+    html: `Detectamos <b>${totalProdutos}</b> produtos e <b>${totalColunasValidas}</b> colunas válidas.<br/><br/>Famílias categorizadas:<br/>${summaryHtml || '• <b>PENDENTE</b>: 0'}<br/><br/>Deseja prosseguir?`,
     showCancelButton: true,
     confirmButtonText: 'Prosseguir',
     cancelButtonText: 'Cancelar'

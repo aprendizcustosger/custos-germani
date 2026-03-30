@@ -7,6 +7,27 @@ const KEYWORDS = {
   massas: ['espaguete', 'parafuso', 'ninho', 'ovos']
 };
 
+const AUTO_FAMILY_RULES = [
+  {
+    origem: 'BISCOITOS',
+    familiaId: 'M012',
+    familiaLabel: 'BISCOITO SOLTO DOCE',
+    termos: ['biscoito', 'wafer', 'recheado', 'rosquinha']
+  },
+  {
+    origem: 'MASSAS',
+    familiaId: 'M024',
+    familiaLabel: 'MASSA COM OVOS',
+    termos: ['espaguete', 'parafuso', 'penne', 'ovos']
+  },
+  {
+    origem: 'MOAGEM',
+    familiaId: 'M000',
+    familiaLabel: 'MISTURAS GERAIS',
+    termos: ['farinha', 'trigo', 'mistura']
+  }
+];
+
 const PACK_REGEX = /(\d+\s?(g|kg)|cx)\b/i;
 
 export function normalizeProductCode(value) {
@@ -24,6 +45,22 @@ export function normalizeProductCode(value) {
 function findMasterIdByDescription(options, label) {
   const target = normalizeText(label);
   return (options || []).find(item => normalizeText(item.descricao) === target)?.id || null;
+}
+
+function findPendingId(options) {
+  return findMasterIdByDescription(options, 'PENDENTE')
+    || findMasterIdByDescription(options, 'OUTROS')
+    || 'PENDENTE';
+}
+
+function findFamilyId(masters, rule) {
+  const ids = new Set((masters.familias || []).map(item => String(item.id)));
+  if (ids.has(String(rule.familiaId))) return rule.familiaId;
+  return findMasterIdByDescription(masters.familias, rule.familiaLabel) || findPendingId(masters.familias);
+}
+
+function findAutoRule(normalizedDesc) {
+  return AUTO_FAMILY_RULES.find(rule => rule.termos.some(termo => normalizedDesc.includes(termo))) || null;
 }
 
 function inferOrigem(normalizedDesc, codigoProduto) {
@@ -49,6 +86,26 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
   const codigoProduto = normalizeProductCode(product.codigo_produto);
   const normalizedDesc = normalizeText(product.descricao || '');
 
+  const matchedRule = findAutoRule(normalizedDesc);
+  const pendingOrigem = findPendingId(masters.origens);
+  const pendingFamilia = findPendingId(masters.familias);
+  const pendingAgrupamento = findPendingId(masters.agrupamentos);
+
+  if (matchedRule) {
+    const origem_id = findMasterIdByDescription(masters.origens, matchedRule.origem) || pendingOrigem;
+    const familia_id = findFamilyId(masters, matchedRule);
+
+    return {
+      origem_id,
+      familia_id,
+      agrupamento_cod: findMasterIdByDescription(masters.agrupamentos, matchedRule.familiaLabel) || pendingAgrupamento,
+      origem_hint: matchedRule.origem,
+      familia_hint: matchedRule.familiaLabel,
+      agrupamento_hint: matchedRule.familiaLabel,
+      status: 'SUGERIDO'
+    };
+  }
+
   const origemHint = inferOrigem(normalizedDesc, codigoProduto);
   const familiaHint = origemHint;
   const agrupamentoHint = inferAgrupamento(normalizedDesc, origemHint);
@@ -70,9 +127,9 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
 
 export function splitImportRows(rows, masters = { dicionario: [] }) {
   const dictByCode = new Map((masters.dicionario || []).map(item => [normalizeProductCode(item.codigo_produto), item]));
-  const pendingOrigem = findMasterIdByDescription(masters.origens, 'PENDENTE');
-  const pendingFamilia = findMasterIdByDescription(masters.familias, 'PENDENTE');
-  const pendingAgrupamento = findMasterIdByDescription(masters.agrupamentos, 'PENDENTE');
+  const pendingOrigem = findPendingId(masters.origens);
+  const pendingFamilia = findPendingId(masters.familias);
+  const pendingAgrupamento = findPendingId(masters.agrupamentos);
 
   const validos = [];
   const novos_dicionario = [];
