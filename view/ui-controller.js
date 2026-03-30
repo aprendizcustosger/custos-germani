@@ -131,7 +131,7 @@ async function handleImport(file) {
     return;
   }
 
-  const { validos, novos_dicionario } = splitImportRows(payload, state.masters);
+  const { validos, novos_dicionario, novos_por_origem } = splitImportRows(payload, state.masters);
 
   if (novos_dicionario.length) {
     const { error: dictError } = await api.upsertDicionarioProdutos(novos_dicionario);
@@ -142,11 +142,6 @@ async function handleImport(file) {
     }
 
     state.masters = await api.getMasters();
-    Swal.fire({
-      icon: 'warning',
-      title: 'Atenção',
-      html: `Atenção: <b>${novos_dicionario.length}</b> novos produtos foram detectados e classificados como PENDENTE. <br/>Clique em Auditoria para revisar as amarrações.`
-    });
   }
 
   const { error } = await api.upsertHistoricoCustos(validos);
@@ -156,7 +151,22 @@ async function handleImport(file) {
     return;
   }
 
-  Swal.fire({ icon: 'success', title: 'Importação concluída', html: `<b>${validos.length}</b> itens salvos em <b>${refDate}</b>.` });
+  const novosMassas = Number(novos_por_origem?.MASSAS || 0);
+  const novosPendentes = Number(novos_por_origem?.PENDENTE || 0);
+
+  const resumoNovos = novos_dicionario.length
+    ? ` ${novos_dicionario.length} novos produtos foram adicionados ao dicionário para classificação posterior.`
+    : '';
+
+  const resumoClassificacao = novos_dicionario.length
+    ? `<br/>Identificamos <b>${novosMassas}</b> novos produtos da linha <b>Massas</b> e <b>${novosPendentes}</b> produtos novos foram marcados como <b>PENDENTE</b> para sua revisão.`
+    : '';
+
+  Swal.fire({
+    icon: 'success',
+    title: 'Importação concluída',
+    html: `<b>${validos.length}</b> itens salvos em <b>${refDate}</b>.${resumoNovos}${resumoClassificacao}`
+  });
 }
 
 async function requestManualMapping(headers, current) {
