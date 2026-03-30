@@ -85,7 +85,7 @@ export function scanHeaders(rows) {
 export function mapRowsToPayload(rows, mapping, dataReferencia, userId) {
   return rows.map(row => ({
     codigo_produto: normalizeCodigoProduto(row[mapping.produto]),
-    descricao: String(row[mapping.descricao] || '').trim(),
+    descricao: String(row[mapping.descricao] || '').replace(/\s+/g, ' ').trim(),
     custo_total: parseCurrencyBRL(row[mapping.custo_total]),
     data_referencia: dataReferencia,
     user_id: userId,

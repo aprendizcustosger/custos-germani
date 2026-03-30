@@ -131,6 +131,7 @@ export const api = {
   async upsertDicionarioProdutos(payload) {
     const sanitized = (payload || []).map(item => ({
       codigo_produto: item.codigo_produto,
+      descricao: String(item.descricao || '').replace(/\s+/g, ' ').trim(),
       origem_cod: item.origem_cod || null,
       familia_cod: item.familia_cod || null,
       agrupamento_cod: item.agrupamento_cod || null
