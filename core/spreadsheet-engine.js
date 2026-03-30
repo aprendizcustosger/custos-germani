@@ -4,8 +4,11 @@ export const REQUIRED_FIELDS = ['produto', 'descricao', 'custo_variavel', 'custo
 const ALLOWED_HEADER_MAP = {
   produto: 'produto',
   descricao: 'descricao',
+  descricaoproduto: 'descricao',
   custovariavel: 'custo_variavel',
+  custovar: 'custo_variavel',
   custodiretofixo: 'custo_direto_fixo',
+  custodireto: 'custo_direto_fixo',
   custototal: 'custo_total'
 };
 
@@ -76,7 +79,7 @@ export function readWorkbook(arrayBuffer) {
 }
 
 export function scanHeaders(rows) {
-  const headers = rows.length ? Object.keys(rows[0]) : [];
+  const headers = [...new Set((rows || []).flatMap(row => Object.keys(row || {})))];
   const normalizedHeaders = headers.map(h => ({ original: h, key: normalizeText(h).replace(/\s+/g, '') }));
   const allowedHeaders = normalizedHeaders.filter(h => ALLOWED_HEADER_MAP[h.key]);
 

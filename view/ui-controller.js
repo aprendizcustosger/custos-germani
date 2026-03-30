@@ -42,6 +42,7 @@ async function init() {
   bindUpload();
   bindFilters();
   autoAuthenticate();
+  await loadMasters({ force: true });
   await fetchMetadata();
 }
 
@@ -231,7 +232,12 @@ async function handleImport(file) {
     ? `<br/>Identificamos <b>${novosMassas}</b> novos produtos da linha <b>Massas</b> e <b>${novosPendentes}</b> produtos novos foram marcados como <b>PENDENTE</b> para sua revisão.`
     : '';
 
-  showToast('success', `Sucesso! ${validos.length} itens foram importados para a base Germani.`);
+  const successMessage = `Sucesso! ${validos.length} itens importados com sucesso.`;
+  showToast('success', successMessage);
+  await Swal.fire({
+    icon: 'success',
+    title: successMessage
+  });
 
   if (resumoNovos || resumoClassificacao) {
     Swal.fire({

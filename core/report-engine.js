@@ -85,7 +85,7 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
 
     return {
       codigo: first.codigo_produto,
-      descricao: last.descricao || '-',
+      descricao: last.descricao || dict.descricao || '-',
       origem,
       familia,
       agrupamento,
