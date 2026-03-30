@@ -35,7 +35,7 @@ function findMasterIdByDescription(options, label) {
 function findPendingId(options) {
   return findMasterIdByDescription(options, 'PENDENTE')
     || findMasterIdByDescription(options, 'OUTROS')
-    || 'PENDENTE';
+    || null;
 }
 
 function findMasterIdByFixedCode(options, fixedCode) {
@@ -139,13 +139,13 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
 
     if (normalizedDesc.includes('biscoito')) {
       familia_id = 'M012';
-      origem_id = 'BISCOITOS';
-      sugestao_origem = 'BISCOITOS';
+      origem_id = 'M012';
+      sugestao_origem = 'M012';
       sugestao_familia = 'M012';
     } else if (normalizedDesc.includes('massa')) {
       familia_id = 'M024';
-      origem_id = 'MASSAS';
-      sugestao_origem = 'MASSAS';
+      origem_id = 'M024';
+      sugestao_origem = 'M024';
       sugestao_familia = 'M024';
     }
 
@@ -153,7 +153,7 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
       codigo_produto: codigo,
       origem_id,
       familia_id,
-      agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || 'PENDENTE',
+      agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || null,
       sugestao_origem,
       sugestao_familia,
       sugestao_agrupamento: suggestion.agrupamento_hint,

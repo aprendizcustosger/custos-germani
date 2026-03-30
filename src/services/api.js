@@ -48,6 +48,11 @@ function isRelationshipCacheError(error) {
   return String(error?.message || '').toLowerCase().includes('could not find a relationship');
 }
 
+function isMissingColumnError(error, columnName) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes(`column ${TABLES.historico}.${String(columnName).toLowerCase()} does not exist`);
+}
+
 function normalizeDictionaryPayloadItem(item) {
   const text = String(item?.descricao || item?.sugestao_familia || item?.sugestao_origem || '').toUpperCase();
   const normalized = {
@@ -79,12 +84,29 @@ function applyCascadeFilterInMemory(rows, filters) {
 }
 
 async function getHistoricoWithClientFallback(filters) {
-  const { data: historicoBase, error: historicoError } = await sb
+  const baseQuery = sb
     .from(TABLES.historico)
-    .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp')
     .gte('data_referencia', filters.start)
-    .lte('data_referencia', filters.end)
+    .lte('data_referencia', filters.end);
+
+  const withDescricao = await baseQuery
+    .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp')
     .order('data_referencia', { ascending: true });
+
+  let historicoBase = withDescricao.data;
+  let historicoError = withDescricao.error;
+
+  if (historicoError && isMissingColumnError(historicoError, 'descricao')) {
+    const withoutDescricao = await sb
+      .from(TABLES.historico)
+      .select('codigo_produto, custo_total, data_referencia, user_id, operacao_timestamp')
+      .gte('data_referencia', filters.start)
+      .lte('data_referencia', filters.end)
+      .order('data_referencia', { ascending: true });
+
+    historicoBase = (withoutDescricao.data || []).map(item => ({ ...item, descricao: null }));
+    historicoError = withoutDescricao.error;
+  }
 
   if (historicoError) return { data: null, error: historicoError };
   if (!historicoBase?.length) return { data: [], error: null };
@@ -92,7 +114,7 @@ async function getHistoricoWithClientFallback(filters) {
   const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
   const { data: dicionarioRows, error: dicionarioError } = await sb
     .from(TABLES.dicionario)
-    .select('codigo_produto, origem_id, familia_id, agrupamento_cod')
+    .select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod')
     .in('codigo_produto', codigos);
 
   if (dicionarioError) return { data: null, error: dicionarioError };
@@ -100,6 +122,7 @@ async function getHistoricoWithClientFallback(filters) {
   const dicionarioByCodigo = new Map((dicionarioRows || []).map(row => [String(row.codigo_produto), row]));
   const enrichedRows = historicoBase.map(item => ({
     ...item,
+    descricao: item.descricao || dicionarioByCodigo.get(String(item.codigo_produto))?.descricao || null,
     dicionario_produtos: dicionarioByCodigo.get(String(item.codigo_produto)) || null
   }));
 
