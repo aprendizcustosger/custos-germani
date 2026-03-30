@@ -1,10 +1,15 @@
-/* Responsabilidade: cálculos analíticos e lógica de cascata (Origem -> Família -> Agrupamento). */
+/* Responsabilidade: cálculos analíticos e lógica de cascata (Origem -> Família -> Agrupamento -> Item). */
 
-export function fillSelect(select, options, first) {
+export function fillSelect(select, options, first, selectedValue = null) {
   select.innerHTML = `<option value="${first.value}">${first.label}</option>`;
   options.forEach(opt => {
     select.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
   });
+
+  if (selectedValue !== null) {
+    const hasOption = [first.value, ...options.map(opt => opt.value)].includes(String(selectedValue));
+    select.value = hasOption ? String(selectedValue) : String(first.value);
+  }
 }
 
 export function calculateCascadeOptions(state, masters) {
@@ -28,7 +33,21 @@ export function calculateCascadeOptions(state, masters) {
     return { value: id, label: grp?.descricao || id };
   });
 
-  return { familyOptions, groupOptions };
+  const productBase = byFamilia.filter(item =>
+    state.agrupamento === 'TODOS' || String(item.agrupamento_cod) === String(state.agrupamento)
+  );
+
+  const productMap = new Map();
+  productBase.forEach(item => {
+    if (!item.codigo_produto) return;
+    const codigo = String(item.codigo_produto);
+    if (!productMap.has(codigo)) {
+      productMap.set(codigo, { value: codigo, label: `${codigo} - ${item.descricao || '-'}` });
+    }
+  });
+  const productOptions = [...productMap.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+
+  return { familyOptions, groupOptions, productOptions };
 }
 
 export function buildReportRows(historico, masters = { origens: [], familias: [], agrupamentos: [] }) {
