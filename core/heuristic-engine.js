@@ -91,7 +91,6 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
 
     novos_dicionario.push({
       codigo_produto: codigo,
-      descricao: String(normalizedItem.descricao || '').replace(/\s+/g, ' ').trim(),
       origem_id: suggestion.origem_id || pendingOrigem,
       familia_id: suggestion.familia_id || pendingFamilia,
       agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || 'PENDENTE',
