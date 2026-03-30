@@ -28,8 +28,8 @@ Tabela mestre de amarração da hierarquia de produtos.
 | Coluna | Tipo | Descrição |
 | :--- | :--- | :--- |
 | `codigo_produto` | Text (PK) | Código identificador único da Germani. |
-| `origem_cod` | UUID (FK) | Relaciona com `categorias_origem.id`. |
-| `familia_cod` | UUID (FK) | Relaciona com `categorias_familia.id`. |
+| `origem_id` | UUID (FK) | Relaciona com `categorias_origem.id`. |
+| `familia_id` | UUID (FK) | Relaciona com `categorias_familia.id`. |
 | `agrupamento_cod` | Text | Nome do agrupamento específico. |
 
 ### 4) `historico_custos` (Tabela de Fatos)
@@ -70,7 +70,7 @@ As tabelas estão conectadas para evitar dados órfãos.
 Índices recomendados para ganho de desempenho:
 
 - `idx_historico_data`: acelera consultas por período (`data_referencia`).
-- `idx_dicionario_hierarquia`: acelera filtros em cascata (`origem_cod`, `familia_cod`, `agrupamento_cod`).
+- `idx_dicionario_hierarquia`: acelera filtros em cascata (`origem_id`, `familia_id`, `agrupamento_cod`).
 
 Exemplo:
 
@@ -79,7 +79,7 @@ create index if not exists idx_historico_data
   on historico_custos (data_referencia);
 
 create index if not exists idx_dicionario_hierarquia
-  on dicionario_produtos (origem_cod, familia_cod, agrupamento_cod);
+  on dicionario_produtos (origem_id, familia_id, agrupamento_cod);
 ```
 
 ---

@@ -17,7 +17,7 @@ create index if not exists idx_historico_data
 
 -- 003_idx_dicionario_hierarquia.sql
 create index if not exists idx_dicionario_hierarquia
-  on dicionario_produtos (origem_cod, familia_cod, agrupamento_cod);
+  on dicionario_produtos (origem_id, familia_id, agrupamento_cod);
 ```
 
 ## 15.3 Controle de execução

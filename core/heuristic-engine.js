@@ -76,6 +76,7 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
 
   const validos = [];
   const novos_dicionario = [];
+  const novosPorOrigem = {};
 
   rows.forEach(item => {
     const codigo = normalizeProductCode(item.codigo_produto);
@@ -86,6 +87,8 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     if (novos_dicionario.some(x => normalizeProductCode(x.codigo_produto) === codigo)) return;
 
     const suggestion = suggestCategory(normalizedItem, masters);
+    novosPorOrigem[suggestion.origem_hint] = (novosPorOrigem[suggestion.origem_hint] || 0) + 1;
+
     novos_dicionario.push({
       codigo_produto: codigo,
       origem_id: suggestion.origem_id || pendingOrigem,
@@ -98,5 +101,5 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     });
   });
 
-  return { validos, novos_dicionario };
+  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem };
 }
