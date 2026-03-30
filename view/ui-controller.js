@@ -42,7 +42,7 @@ async function init() {
   bindUpload();
   bindFilters();
   autoAuthenticate();
-  await loadMasters({ force: true });
+  await fetchMetadata();
 }
 
 function autoAuthenticate() {
@@ -69,6 +69,23 @@ async function loadMasters(options = {}) {
   refreshCascade();
 }
 
+async function fetchMetadata() {
+  await loadMasters({ force: true });
+  fillSelect(
+    dom.selO,
+    state.masters.origens.map(item => ({ value: String(item.id), label: item.nome || item.descricao || String(item.id) })),
+    { value: 'TODAS', label: 'TODAS' },
+    dom.selO.value || 'TODAS'
+  );
+  fillSelect(
+    dom.selF,
+    state.masters.familias.map(item => ({ value: String(item.id), label: item.nome || item.descricao || String(item.id) })),
+    { value: 'TODAS', label: 'TODAS' },
+    dom.selF.value || 'TODAS'
+  );
+  refreshCascade();
+}
+
 function bindNavigation() {
   dom.navItems.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -78,7 +95,7 @@ function bindNavigation() {
       Object.values(dom.views).forEach(v => v.classList.add('hidden'));
       dom.views[view].classList.remove('hidden');
       if (view === 'report') {
-        loadMasters({ force: true });
+        fetchMetadata();
       }
     });
   });
@@ -164,17 +181,7 @@ async function handleImport(file) {
 
   dom.dropZone.classList.add('processing');
   const rows = readWorkbook(await file.arrayBuffer());
-  let { headers, mapping, rejectedHeaders } = scanHeaders(rows);
-
-  if (rejectedHeaders.length) {
-    dom.dropZone.classList.remove('processing');
-    Swal.fire({
-      icon: 'error',
-      title: 'Colunas inválidas na planilha',
-      html: `A importação aceita somente estas 5 colunas: <b>Produto</b>, <b>Descrição</b>, <b>Custo Variável</b>, <b>Custo Direto Fixo</b> e <b>Custo Total</b>.<br/><br/>Colunas rejeitadas: ${rejectedHeaders.join(', ')}`
-    });
-    return;
-  }
+  let { headers, mapping } = scanHeaders(rows);
 
   if (countValidMappedColumns(mapping) < REQUIRED_FIELDS.length) {
     const manualMap = await requestManualMapping(headers, mapping);
@@ -199,7 +206,7 @@ async function handleImport(file) {
     const { error: dictError } = await api.upsertDicionarioProdutos(novos_dicionario);
     if (dictError) {
       dom.dropZone.classList.remove('processing');
-      Swal.fire({ icon: 'error', title: 'Falha ao classificar novos produtos', text: dictError.message });
+      showToast('error', `Erro na importação: ${dictError.message}`);
       return;
     }
 
@@ -209,7 +216,7 @@ async function handleImport(file) {
   const { error } = await api.upsertHistoricoCustos(validos);
   dom.dropZone.classList.remove('processing');
   if (error) {
-    Swal.fire({ icon: 'error', title: 'Falha na gravação', text: error.message });
+    showToast('error', `Erro na importação: ${error.message}`);
     return;
   }
 
@@ -224,11 +231,15 @@ async function handleImport(file) {
     ? `<br/>Identificamos <b>${novosMassas}</b> novos produtos da linha <b>Massas</b> e <b>${novosPendentes}</b> produtos novos foram marcados como <b>PENDENTE</b> para sua revisão.`
     : '';
 
-  Swal.fire({
-    icon: 'success',
-    title: 'Importação concluída',
-    html: `<b>${validos.length}</b> itens salvos em <b>${refDate}</b>.${resumoNovos}${resumoClassificacao}`
-  });
+  showToast('success', `Sucesso! ${validos.length} itens foram importados para a base Germani.`);
+
+  if (resumoNovos || resumoClassificacao) {
+    Swal.fire({
+      icon: 'success',
+      title: 'Importação concluída',
+      html: `<b>${validos.length}</b> itens salvos em <b>${refDate}</b>.${resumoNovos}${resumoClassificacao}`
+    });
+  }
 }
 
 async function requestManualMapping(headers, current) {

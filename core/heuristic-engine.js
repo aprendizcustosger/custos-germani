@@ -123,6 +123,7 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     const codigo = normalizeProductCode(item.codigo_produto);
     const normalizedItem = { ...item, codigo_produto: codigo };
     const suggestion = suggestCategory(normalizedItem, masters);
+    const normalizedDesc = normalizeText(normalizedItem.descricao || '');
     validos.push(normalizedItem);
 
     novosPorOrigem[suggestion.origem_hint] = (novosPorOrigem[suggestion.origem_hint] || 0) + 1;
@@ -131,13 +132,30 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     if (dictByCode.has(codigo)) return;
     if (novos_dicionario.some(x => normalizeProductCode(x.codigo_produto) === codigo)) return;
 
+    let origem_id = suggestion.origem_id || 'M000';
+    let familia_id = suggestion.familia_id || 'M000';
+    let sugestao_origem = suggestion.origem_hint;
+    let sugestao_familia = suggestion.familia_hint;
+
+    if (normalizedDesc.includes('biscoito')) {
+      familia_id = 'M012';
+      origem_id = 'BISCOITOS';
+      sugestao_origem = 'BISCOITOS';
+      sugestao_familia = 'M012';
+    } else if (normalizedDesc.includes('massa')) {
+      familia_id = 'M024';
+      origem_id = 'MASSAS';
+      sugestao_origem = 'MASSAS';
+      sugestao_familia = 'M024';
+    }
+
     novos_dicionario.push({
       codigo_produto: codigo,
-      origem_id: suggestion.origem_id || 'M000',
-      familia_id: suggestion.familia_id || 'M000',
+      origem_id,
+      familia_id,
       agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || 'PENDENTE',
-      sugestao_origem: suggestion.origem_hint,
-      sugestao_familia: suggestion.familia_hint,
+      sugestao_origem,
+      sugestao_familia,
       sugestao_agrupamento: suggestion.agrupamento_hint,
       status_classificacao: suggestion.status
     });
