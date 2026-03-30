@@ -12,19 +12,19 @@ const AUTO_FAMILY_RULES = [
     origem: 'BISCOITOS',
     familiaId: 'M012',
     familiaLabel: 'BISCOITO SOLTO DOCE',
-    termos: ['biscoito', 'rosquinha']
+    termos: ['biscoito', 'wafer', 'recheado', 'rosquinha']
   },
   {
     origem: 'MASSAS',
     familiaId: 'M024',
     familiaLabel: 'MASSA COM OVOS',
-    termos: ['massa', 'ovos']
+    termos: ['espaguete', 'parafuso', 'penne', 'ovos']
   },
   {
     origem: 'MOAGEM',
     familiaId: 'M000',
     familiaLabel: 'MISTURAS GERAIS',
-    termos: ['mistura']
+    termos: ['farinha', 'trigo', 'mistura']
   }
 ];
 
@@ -50,18 +50,13 @@ function findMasterIdByDescription(options, label) {
 function findPendingId(options) {
   return findMasterIdByDescription(options, 'PENDENTE')
     || findMasterIdByDescription(options, 'OUTROS')
-    || findMasterIdByDescription(options, 'GENÉRICO')
-    || findMasterIdByDescription(options, 'GENERICO')
-    || (options || [])[0]?.id
-    || null;
+    || 'PENDENTE';
 }
 
 function findFamilyId(masters, rule) {
   const ids = new Set((masters.familias || []).map(item => String(item.id)));
   if (ids.has(String(rule.familiaId))) return rule.familiaId;
-  return findMasterIdByDescription(masters.familias, rule.familiaLabel)
-    || findMasterIdByDescription(masters.familias, rule.origem)
-    || findPendingId(masters.familias);
+  return findMasterIdByDescription(masters.familias, rule.familiaLabel) || findPendingId(masters.familias);
 }
 
 function findAutoRule(normalizedDesc) {
@@ -107,7 +102,7 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
       origem_hint: matchedRule.origem,
       familia_hint: matchedRule.familiaLabel,
       agrupamento_hint: matchedRule.familiaLabel,
-      status: origem_id && familia_id ? 'SUGERIDO' : 'PENDENTE'
+      status: 'SUGERIDO'
     };
   }
 
@@ -115,18 +110,18 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
   const familiaHint = origemHint;
   const agrupamentoHint = inferAgrupamento(normalizedDesc, origemHint);
 
-  const origem_id = findMasterIdByDescription(masters.origens, origemHint) || pendingOrigem;
-  const familia_id = findMasterIdByDescription(masters.familias, familiaHint) || pendingFamilia;
+  const origem_id = findMasterIdByDescription(masters.origens, origemHint);
+  const familia_id = findMasterIdByDescription(masters.familias, familiaHint);
   const agrupamento_cod = findMasterIdByDescription(masters.agrupamentos, agrupamentoHint);
 
   return {
-    origem_id,
-    familia_id,
-    agrupamento_cod: agrupamento_cod || pendingAgrupamento,
+    origem_id: origem_id || null,
+    familia_id: familia_id || null,
+    agrupamento_cod: agrupamento_cod || null,
     origem_hint: origemHint,
     familia_hint: familiaHint,
     agrupamento_hint: agrupamentoHint,
-    status: (origemHint === 'PENDENTE' && familiaHint === 'PENDENTE') ? 'PENDENTE' : 'SUGERIDO'
+    status: origem_id && familia_id && (agrupamento_cod || agrupamentoHint === 'PENDENTE') ? 'SUGERIDO' : 'PENDENTE'
   };
 }
 
@@ -139,7 +134,6 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
   const validos = [];
   const novos_dicionario = [];
   const novosPorOrigem = {};
-  const novosPorFamilia = {};
 
   rows.forEach(item => {
     const codigo = normalizeProductCode(item.codigo_produto);
@@ -153,9 +147,11 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     if (dictByCode.has(codigo)) return;
     if (novos_dicionario.some(x => normalizeProductCode(x.codigo_produto) === codigo)) return;
 
+    const suggestion = suggestCategory(normalizedItem, masters);
+    novosPorOrigem[suggestion.origem_hint] = (novosPorOrigem[suggestion.origem_hint] || 0) + 1;
+
     novos_dicionario.push({
       codigo_produto: codigo,
-      descricao: String(normalizedItem.descricao || '').replace(/\s+/g, ' ').trim(),
       origem_id: suggestion.origem_id || pendingOrigem,
       familia_id: suggestion.familia_id || pendingFamilia,
       agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || 'PENDENTE',
@@ -166,5 +162,5 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     });
   });
 
-  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem, novos_por_familia: novosPorFamilia };
+  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem };
 }
