@@ -21,6 +21,25 @@ export const MASTER_ADMIN = {
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+function resolveMasterId(row) {
+  return row?.id ?? row?.codigo ?? row?.cod ?? row?.uuid ?? row?.value ?? null;
+}
+
+function resolveMasterLabel(row) {
+  return row?.descricao ?? row?.nome ?? row?.label ?? row?.titulo ?? null;
+}
+
+function normalizeMasterRows(rows = []) {
+  return rows
+    .map(row => {
+      const id = resolveMasterId(row);
+      const descricao = resolveMasterLabel(row);
+      if (!id || !descricao) return null;
+      return { ...row, id, descricao };
+    })
+    .filter(Boolean);
+}
+
 function resolveLoginToEmail(login) {
   return login === MASTER_ADMIN.username ? MASTER_ADMIN.email : login;
 }
@@ -141,10 +160,25 @@ export const api = {
       return { origens: [], familias: [], agrupamentos: [], dicionario: [], error };
     }
 
+    const normalizedOrigens = normalizeMasterRows(origens || []);
+    const normalizedFamilias = normalizeMasterRows(familias || []);
+    const normalizedAgrupamentos = normalizeMasterRows(agrupamentos || []);
+
+    const agrupamentosFromDictionary = [...new Set((dicionario || [])
+      .map(item => item?.agrupamento_cod)
+      .filter(Boolean)
+      .map(value => String(value).trim())
+      .filter(Boolean))]
+      .map(id => {
+        const existing = normalizedAgrupamentos.find(item => String(item.id) === id);
+        if (existing) return existing;
+        return { id, descricao: id };
+      });
+
     return {
-      origens: origens || [],
-      familias: familias || [],
-      agrupamentos: agrupamentos || [],
+      origens: normalizedOrigens,
+      familias: normalizedFamilias,
+      agrupamentos: agrupamentosFromDictionary,
       dicionario: dicionario || [],
       error: null
     };
