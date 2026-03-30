@@ -11,6 +11,16 @@ export function normalizeText(value) {
     .trim();
 }
 
+function hasMeaningfulValue(value) {
+  return normalizeText(value).length > 0;
+}
+
+function findHeaderRowIndex(matrixRows) {
+  return matrixRows.findIndex(row =>
+    row.some(cell => normalizeText(cell).includes('produto'))
+  );
+}
+
 export function parseCurrencyBRL(input) {
   const cleaned = String(input || '0')
     .replace(/r\$/gi, '')
@@ -26,8 +36,23 @@ export function parseCurrencyBRL(input) {
 export function readWorkbook(arrayBuffer) {
   const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-  return rows;
+  const matrixRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, blankrows: false });
+
+  const headerRowIndex = findHeaderRowIndex(matrixRows);
+  const safeHeaderIndex = headerRowIndex >= 0 ? headerRowIndex : 0;
+  const headers = (matrixRows[safeHeaderIndex] || []).map(value => String(value || '').trim());
+
+  return matrixRows
+    .slice(safeHeaderIndex + 1)
+    .filter(row => row.some(hasMeaningfulValue))
+    .map(row => {
+      const item = {};
+      headers.forEach((header, index) => {
+        if (!header) return;
+        item[header] = row[index] ?? '';
+      });
+      return item;
+    });
 }
 
 export function scanHeaders(rows) {
