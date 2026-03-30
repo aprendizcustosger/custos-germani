@@ -1,6 +1,6 @@
 /* Responsabilidade: parsing e normalização de planilhas XLSX (Smart Scraper). */
 
-export const REQUIRED_FIELDS = ['produto', 'descricao', 'custo_total'];
+export const REQUIRED_FIELDS = ['produto', 'descricao', 'custo_variavel', 'custo_direto_fixo', 'custo_total'];
 
 export function normalizeText(value) {
   return String(value || '')
@@ -74,18 +74,20 @@ export function scanHeaders(rows) {
 
   const produto = normalizedHeaders.find(h => h.key.includes('produto') || h.key.includes('codigoproduto') || h.key === 'codigo')?.original;
   const descricao = normalizedHeaders.find(h => h.key.includes('descri'))?.original;
+  const custo_variavel = normalizedHeaders.find(h => h.key.includes('custovariavel'))?.original;
+  const custo_direto_fixo = normalizedHeaders.find(h => h.key.includes('custodiretofixo') || (h.key.includes('custo') && h.key.includes('direto') && h.key.includes('fixo')))?.original;
   const custo_total = normalizedHeaders.find(h => h.key.includes('custototal') || (h.key.includes('custo') && h.key.includes('total')) || h.key.includes('valorcusto'))?.original;
 
   return {
     headers,
-    mapping: { produto, descricao, custo_total }
+    mapping: { produto, descricao, custo_variavel, custo_direto_fixo, custo_total }
   };
 }
 
 export function mapRowsToPayload(rows, mapping, dataReferencia, userId) {
   return rows.map(row => ({
     codigo_produto: normalizeCodigoProduto(row[mapping.produto]),
-    descricao: String(row[mapping.descricao] || '').trim(),
+    descricao: String(row[mapping.descricao] || '').replace(/\s+/g, ' ').trim(),
     custo_total: parseCurrencyBRL(row[mapping.custo_total]),
     data_referencia: dataReferencia,
     user_id: userId,

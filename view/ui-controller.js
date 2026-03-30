@@ -115,7 +115,7 @@ async function handleImport(file) {
   const rows = readWorkbook(await file.arrayBuffer());
   let { headers, mapping } = scanHeaders(rows);
 
-  if (countValidMappedColumns(mapping) < 3) {
+  if (countValidMappedColumns(mapping) < REQUIRED_FIELDS.length) {
     const manualMap = await requestManualMapping(headers, mapping);
     if (!manualMap) {
       dom.dropZone.classList.remove('processing');
@@ -125,13 +125,14 @@ async function handleImport(file) {
   }
 
   const payload = mapRowsToPayload(rows, mapping, refDate, state.user?.id || null);
-  const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping));
+  const preProcessed = splitImportRows(payload, state.masters);
+  const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping), preProcessed.novos_por_familia || {});
   if (!confirmed) {
     dom.dropZone.classList.remove('processing');
     return;
   }
 
-  const { validos, novos_dicionario } = splitImportRows(payload, state.masters);
+  const { validos, novos_dicionario, novos_por_origem } = preProcessed;
 
   if (novos_dicionario.length) {
     const { error: dictError } = await api.upsertDicionarioProdutos(novos_dicionario);
@@ -142,11 +143,6 @@ async function handleImport(file) {
     }
 
     state.masters = await api.getMasters();
-    Swal.fire({
-      icon: 'warning',
-      title: 'Atenção',
-      html: `Atenção: <b>${novos_dicionario.length}</b> novos produtos foram detectados e classificados como PENDENTE. <br/>Clique em Auditoria para revisar as amarrações.`
-    });
   }
 
   const { error } = await api.upsertHistoricoCustos(validos);
@@ -156,7 +152,22 @@ async function handleImport(file) {
     return;
   }
 
-  Swal.fire({ icon: 'success', title: 'Importação concluída', html: `<b>${validos.length}</b> itens salvos em <b>${refDate}</b>.` });
+  const novosMassas = Number(novos_por_origem?.MASSAS || 0);
+  const novosPendentes = Number(novos_por_origem?.PENDENTE || 0);
+
+  const resumoNovos = novos_dicionario.length
+    ? ` ${novos_dicionario.length} novos produtos foram adicionados ao dicionário para classificação posterior.`
+    : '';
+
+  const resumoClassificacao = novos_dicionario.length
+    ? `<br/>Identificamos <b>${novosMassas}</b> novos produtos da linha <b>Massas</b> e <b>${novosPendentes}</b> produtos novos foram marcados como <b>PENDENTE</b> para sua revisão.`
+    : '';
+
+  Swal.fire({
+    icon: 'success',
+    title: 'Importação concluída',
+    html: `<b>${validos.length}</b> itens salvos em <b>${refDate}</b>.${resumoNovos}${resumoClassificacao}`
+  });
 }
 
 async function requestManualMapping(headers, current) {
@@ -174,6 +185,8 @@ async function requestManualMapping(headers, current) {
     preConfirm: () => ({
       produto: document.getElementById('map_produto').value,
       descricao: document.getElementById('map_descricao').value,
+      custo_variavel: document.getElementById('map_custo_variavel').value,
+      custo_direto_fixo: document.getElementById('map_custo_direto_fixo').value,
       custo_total: document.getElementById('map_custo_total').value
     })
   });
@@ -182,11 +195,16 @@ async function requestManualMapping(headers, current) {
   return { ...current, ...result.value };
 }
 
-async function confirmImport(totalProdutos, totalColunasValidas) {
+async function confirmImport(totalProdutos, totalColunasValidas, familySummary = {}) {
+  const summaryHtml = Object.entries(familySummary)
+    .sort((a, b) => b[1] - a[1])
+    .map(([familia, total]) => `• <b>${familia}</b>: ${total}`)
+    .join('<br/>');
+
   const result = await Swal.fire({
     icon: 'question',
     title: 'Resumo da detecção',
-    html: `Detectamos <b>${totalProdutos}</b> produtos e <b>${totalColunasValidas}</b> colunas válidas.<br/>Deseja prosseguir?`,
+    html: `Detectamos <b>${totalProdutos}</b> produtos e <b>${totalColunasValidas}</b> colunas válidas.<br/><br/>Famílias categorizadas:<br/>${summaryHtml || '• <b>PENDENTE</b>: 0'}<br/><br/>Deseja prosseguir?`,
     showCancelButton: true,
     confirmButtonText: 'Prosseguir',
     cancelButtonText: 'Cancelar'
