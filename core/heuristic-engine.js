@@ -53,18 +53,18 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
   const familiaHint = origemHint;
   const agrupamentoHint = inferAgrupamento(normalizedDesc, origemHint);
 
-  const origem_cod = findMasterIdByDescription(masters.origens, origemHint);
-  const familia_cod = findMasterIdByDescription(masters.familias, familiaHint);
+  const origem_id = findMasterIdByDescription(masters.origens, origemHint);
+  const familia_id = findMasterIdByDescription(masters.familias, familiaHint);
   const agrupamento_cod = findMasterIdByDescription(masters.agrupamentos, agrupamentoHint);
 
   return {
-    origem_cod: origem_cod || null,
-    familia_cod: familia_cod || null,
+    origem_id: origem_id || null,
+    familia_id: familia_id || null,
     agrupamento_cod: agrupamento_cod || null,
     origem_hint: origemHint,
     familia_hint: familiaHint,
     agrupamento_hint: agrupamentoHint,
-    status: origem_cod && familia_cod && (agrupamento_cod || agrupamentoHint === 'PENDENTE') ? 'SUGERIDO' : 'PENDENTE'
+    status: origem_id && familia_id && (agrupamento_cod || agrupamentoHint === 'PENDENTE') ? 'SUGERIDO' : 'PENDENTE'
   };
 }
 
@@ -76,6 +76,7 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
 
   const validos = [];
   const novos_dicionario = [];
+  const novosPorOrigem = {};
 
   rows.forEach(item => {
     const codigo = normalizeProductCode(item.codigo_produto);
@@ -86,10 +87,13 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     if (novos_dicionario.some(x => normalizeProductCode(x.codigo_produto) === codigo)) return;
 
     const suggestion = suggestCategory(normalizedItem, masters);
+    novosPorOrigem[suggestion.origem_hint] = (novosPorOrigem[suggestion.origem_hint] || 0) + 1;
+
     novos_dicionario.push({
       codigo_produto: codigo,
-      origem_cod: suggestion.origem_cod || pendingOrigem,
-      familia_cod: suggestion.familia_cod || pendingFamilia,
+      descricao: String(normalizedItem.descricao || '').replace(/\s+/g, ' ').trim(),
+      origem_id: suggestion.origem_id || pendingOrigem,
+      familia_id: suggestion.familia_id || pendingFamilia,
       agrupamento_cod: suggestion.agrupamento_cod || pendingAgrupamento || 'PENDENTE',
       sugestao_origem: suggestion.origem_hint,
       sugestao_familia: suggestion.familia_hint,
@@ -98,5 +102,5 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     });
   });
 
-  return { validos, novos_dicionario };
+  return { validos, novos_dicionario, novos_por_origem: novosPorOrigem };
 }
