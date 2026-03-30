@@ -1,6 +1,13 @@
 /* Responsabilidade: parsing e normalização de planilhas XLSX (Smart Scraper). */
 
 export const REQUIRED_FIELDS = ['produto', 'descricao', 'custo_variavel', 'custo_direto_fixo', 'custo_total'];
+const ALLOWED_HEADER_MAP = {
+  produto: 'produto',
+  descricao: 'descricao',
+  custovariavel: 'custo_variavel',
+  custodiretofixo: 'custo_direto_fixo',
+  custototal: 'custo_total'
+};
 
 export function normalizeText(value) {
   return String(value || '')
@@ -71,16 +78,19 @@ export function readWorkbook(arrayBuffer) {
 export function scanHeaders(rows) {
   const headers = rows.length ? Object.keys(rows[0]) : [];
   const normalizedHeaders = headers.map(h => ({ original: h, key: normalizeText(h).replace(/\s+/g, '') }));
+  const allowedHeaders = normalizedHeaders.filter(h => ALLOWED_HEADER_MAP[h.key]);
+  const rejectedHeaders = normalizedHeaders.filter(h => !ALLOWED_HEADER_MAP[h.key]).map(h => h.original);
 
-  const produto = normalizedHeaders.find(h => h.key.includes('produto') || h.key.includes('codigoproduto') || h.key === 'codigo')?.original;
-  const descricao = normalizedHeaders.find(h => h.key.includes('descri'))?.original;
-  const custo_variavel = normalizedHeaders.find(h => h.key.includes('custovariavel'))?.original;
-  const custo_direto_fixo = normalizedHeaders.find(h => h.key.includes('custodiretofixo') || (h.key.includes('custo') && h.key.includes('direto') && h.key.includes('fixo')))?.original;
-  const custo_total = normalizedHeaders.find(h => h.key.includes('custototal') || (h.key.includes('custo') && h.key.includes('total')) || h.key.includes('valorcusto'))?.original;
+  const mapping = { produto: null, descricao: null, custo_variavel: null, custo_direto_fixo: null, custo_total: null };
+  allowedHeaders.forEach(header => {
+    const canonical = ALLOWED_HEADER_MAP[header.key];
+    if (!mapping[canonical]) mapping[canonical] = header.original;
+  });
 
   return {
-    headers,
-    mapping: { produto, descricao, custo_variavel, custo_direto_fixo, custo_total }
+    headers: allowedHeaders.map(h => h.original),
+    mapping,
+    rejectedHeaders
   };
 }
 
