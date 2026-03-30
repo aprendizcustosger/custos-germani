@@ -54,6 +54,7 @@ function applyCascadeFilterInMemory(rows, filters) {
     if (filters.origem !== 'TODAS' && String(dict?.origem_id) !== String(filters.origem)) return false;
     if (filters.familia !== 'TODAS' && String(dict?.familia_id) !== String(filters.familia)) return false;
     if (filters.agrupamento !== 'TODOS' && String(dict?.agrupamento_cod) !== String(filters.agrupamento)) return false;
+    if (filters.item !== 'TODOS' && String(item.codigo_produto) !== String(filters.item)) return false;
     return true;
   });
 }
@@ -96,6 +97,7 @@ async function getHistoricoWithRelations(filters) {
   if (filters.origem !== 'TODAS') query = query.eq('dicionario_produtos.origem_id', filters.origem);
   if (filters.familia !== 'TODAS') query = query.eq('dicionario_produtos.familia_id', filters.familia);
   if (filters.agrupamento !== 'TODOS') query = query.eq('dicionario_produtos.agrupamento_cod', filters.agrupamento);
+  if (filters.item !== 'TODOS') query = query.eq('codigo_produto', filters.item);
 
   return query.order('data_referencia', { ascending: true });
 }
@@ -127,18 +129,24 @@ export const api = {
   },
 
   async getMasters() {
-    const [{ data: origens }, { data: familias }, { data: agrupamentos }, { data: dicionario }] = await Promise.all([
+    const [{ data: origens, error: origensError }, { data: familias, error: familiasError }, { data: agrupamentos, error: agrupamentosError }, { data: dicionario, error: dicionarioError }] = await Promise.all([
       sb.from(TABLES.origem).select('*').order('descricao'),
       sb.from(TABLES.familia).select('*').order('descricao'),
       sb.from(TABLES.agrupamento).select('*').order('descricao'),
       sb.from(TABLES.dicionario).select('*')
     ]);
 
+    const error = origensError || familiasError || agrupamentosError || dicionarioError;
+    if (error) {
+      return { origens: [], familias: [], agrupamentos: [], dicionario: [], error };
+    }
+
     return {
       origens: origens || [],
       familias: familias || [],
       agrupamentos: agrupamentos || [],
-      dicionario: dicionario || []
+      dicionario: dicionario || [],
+      error: null
     };
   },
 

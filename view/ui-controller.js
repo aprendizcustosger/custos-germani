@@ -26,6 +26,7 @@ const dom = {
   selO: document.getElementById('selO'),
   selF: document.getElementById('selF'),
   selA: document.getElementById('selA'),
+  selI: document.getElementById('selI'),
   analyzeBtn: document.getElementById('analyzeBtn'),
   reportContent: document.getElementById('reportContent'),
   tableBody: document.getElementById('tableBody'),
@@ -50,7 +51,16 @@ function autoAuthenticate() {
 }
 
 async function loadMasters() {
-  state.masters = await api.getMasters();
+  const masters = await api.getMasters();
+  if (masters.error) {
+    showToast('error', `Falha ao carregar tabelas de apoio: ${masters.error.message}`);
+  }
+  state.masters = {
+    origens: masters.origens || [],
+    familias: masters.familias || [],
+    agrupamentos: masters.agrupamentos || [],
+    dicionario: masters.dicionario || []
+  };
   fillSelect(dom.selO, state.masters.origens.map(x => ({ value: String(x.id), label: x.descricao })), { value: 'TODAS', label: 'TODAS' });
   refreshCascade();
 }
@@ -92,16 +102,50 @@ function bindUpload() {
 function bindFilters() {
   dom.selO.addEventListener('change', () => refreshCascade('origem'));
   dom.selF.addEventListener('change', () => refreshCascade('familia'));
+  dom.selA.addEventListener('change', () => refreshCascade('agrupamento'));
+  dom.selI.addEventListener('change', () => autoRefreshReport());
+  [dom.dtStart, dom.dtEnd].forEach(input => input.addEventListener('change', () => autoRefreshReport()));
   dom.analyzeBtn.addEventListener('click', runReport);
 }
 
 function refreshCascade(trigger) {
-  if (trigger === 'origem') dom.selF.value = 'TODAS';
-  const { familyOptions } = calculateCascadeOptions({ origem: dom.selO.value, familia: dom.selF.value }, state.masters);
-  fillSelect(dom.selF, familyOptions, { value: 'TODAS', label: 'TODAS' });
+  const currentFamily = dom.selF.value || 'TODAS';
+  const currentGroup = dom.selA.value || 'TODOS';
+  const currentItem = dom.selI.value || 'TODOS';
 
-  const { groupOptions } = calculateCascadeOptions({ origem: dom.selO.value, familia: dom.selF.value || 'TODAS' }, state.masters);
-  fillSelect(dom.selA, groupOptions, { value: 'TODOS', label: 'TODOS' });
+  if (trigger === 'origem') {
+    dom.selF.value = 'TODAS';
+    dom.selA.value = 'TODOS';
+    dom.selI.value = 'TODOS';
+  }
+  if (trigger === 'familia') {
+    dom.selA.value = 'TODOS';
+    dom.selI.value = 'TODOS';
+  }
+  if (trigger === 'agrupamento') {
+    dom.selI.value = 'TODOS';
+  }
+
+  const familyValue = trigger === 'origem' ? 'TODAS' : currentFamily;
+  const { familyOptions } = calculateCascadeOptions({ origem: dom.selO.value, familia: familyValue }, state.masters);
+  fillSelect(dom.selF, familyOptions, { value: 'TODAS', label: 'TODAS' }, familyValue);
+
+  const { groupOptions, productOptions } = calculateCascadeOptions({
+    origem: dom.selO.value,
+    familia: dom.selF.value || 'TODAS',
+    agrupamento: dom.selA.value || 'TODOS'
+  }, state.masters);
+  const groupValue = ['origem', 'familia'].includes(trigger) ? 'TODOS' : currentGroup;
+  const itemValue = ['origem', 'familia', 'agrupamento'].includes(trigger) ? 'TODOS' : currentItem;
+  fillSelect(dom.selA, groupOptions, { value: 'TODOS', label: 'TODOS' }, groupValue);
+  fillSelect(dom.selI, productOptions, { value: 'TODOS', label: 'TODOS' }, itemValue);
+  autoRefreshReport();
+}
+
+function autoRefreshReport() {
+  if (dom.dtStart.value && dom.dtEnd.value) {
+    runReport({ silent: true });
+  }
 }
 
 async function handleImport(file) {
@@ -222,21 +266,30 @@ async function confirmImport(totalProdutos, totalColunasValidas, familySummary =
   return result.isConfirmed;
 }
 
-async function runReport() {
+async function runReport(options = {}) {
+  const { silent = false } = options;
   const start = dom.dtStart.value;
   const end = dom.dtEnd.value;
   if (!start || !end) {
-    showToast('warning', 'Informe período inicial e final.');
+    if (!silent) showToast('warning', 'Informe período inicial e final.');
     return;
   }
 
-  const { data, error } = await api.getHistorico({ start, end, origem: dom.selO.value, familia: dom.selF.value, agrupamento: dom.selA.value });
+  const { data, error } = await api.getHistorico({
+    start,
+    end,
+    origem: dom.selO.value,
+    familia: dom.selF.value,
+    agrupamento: dom.selA.value,
+    item: dom.selI.value
+  });
   if (error) {
     Swal.fire({ icon: 'error', title: 'Erro na consulta', text: error.message });
     return;
   }
   if (!data?.length) {
-    showToast('info', 'Sem dados para os filtros selecionados.');
+    dom.reportContent.classList.add('hidden');
+    if (!silent) showToast('info', 'Sem dados para os filtros selecionados.');
     return;
   }
 
@@ -249,6 +302,7 @@ async function runReport() {
 
   renderMainChart(rows);
   renderTable(rows);
+  await renderTrendByFilters(data);
   dom.reportContent.classList.remove('hidden');
 }
 
@@ -299,6 +353,32 @@ async function renderTrendChart(codigo) {
     data: {
       labels: (data || []).map(x => x.data_referencia),
       datasets: [{ label: `Tendência 6M - ${codigo}`, data: (data || []).map(x => Number(x.custo_total || 0)), borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', tension: 0.25, fill: true }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
+
+async function renderTrendByFilters(data) {
+  const groupedByDate = (data || []).reduce((acc, row) => {
+    const key = row.data_referencia;
+    if (!acc[key]) acc[key] = { total: 0, count: 0 };
+    acc[key].total += Number(row.custo_total || 0);
+    acc[key].count += 1;
+    return acc;
+  }, {});
+
+  const labels = Object.keys(groupedByDate).sort((a, b) => a.localeCompare(b));
+  const values = labels.map(label => {
+    const entry = groupedByDate[label];
+    return Number((entry.total / Math.max(entry.count, 1)).toFixed(2));
+  });
+
+  if (state.trendChart) state.trendChart.destroy();
+  state.trendChart = new Chart(dom.trendChart, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Histórico de custo médio', data: values, backgroundColor: '#38bdf8' }]
     },
     options: { responsive: true, maintainAspectRatio: false }
   });
