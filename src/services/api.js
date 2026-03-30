@@ -29,6 +29,25 @@ function isRelationshipCacheError(error) {
   return String(error?.message || '').toLowerCase().includes('could not find a relationship');
 }
 
+function normalizeDictionaryPayloadItem(item) {
+  const text = String(item?.descricao || item?.sugestao_familia || item?.sugestao_origem || '').toUpperCase();
+  const normalized = {
+    codigo_produto: item.codigo_produto,
+    origem_id: item.origem_id,
+    familia_id: item.familia_id,
+    agrupamento_cod: item.agrupamento_cod || null
+  };
+
+  const isBiscoito = text.includes('BISCOITO');
+  const isMassa = text.includes('MASSA');
+  const keywordId = isBiscoito ? 'M012' : (isMassa ? 'M024' : 'M000');
+
+  if (!normalized.origem_id) normalized.origem_id = keywordId;
+  if (!normalized.familia_id) normalized.familia_id = keywordId;
+
+  return normalized;
+}
+
 function applyCascadeFilterInMemory(rows, filters) {
   return (rows || []).filter(item => {
     const dict = item.dicionario_produtos;
@@ -70,7 +89,7 @@ async function getHistoricoWithClientFallback(filters) {
 async function getHistoricoWithRelations(filters) {
   let query = sb
     .from(TABLES.historico)
-    .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp, dicionario_produtos!left(codigo_produto, origem_id, familia_id, agrupamento_cod)')
+    .select('*, dicionario_produtos(origem_id, familia_id, agrupamento_cod)')
     .gte('data_referencia', filters.start)
     .lte('data_referencia', filters.end);
 
@@ -129,12 +148,7 @@ export const api = {
 
 
   async upsertDicionarioProdutos(payload) {
-    const sanitized = (payload || []).map(item => ({
-      codigo_produto: item.codigo_produto,
-      origem_id: item.origem_id,
-      familia_id: item.familia_id,
-      agrupamento_cod: item.agrupamento_cod || null
-    }));
+    const sanitized = (payload || []).map(normalizeDictionaryPayloadItem);
 
     const invalid = sanitized.filter(item => !item.origem_id || !item.familia_id);
     if (invalid.length) {
