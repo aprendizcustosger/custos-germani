@@ -214,11 +214,23 @@ async function handleImport(file) {
     state.masters = await api.getMasters();
   }
 
-  const { error } = await api.upsertHistoricoCustos(validos);
+  const { data: resultadoImportacao, error } = await api.importarHistoricoCustosComLog(validos, {
+    userId: state.user?.id || null,
+    dataReferencia: refDate
+  });
   dom.dropZone.classList.remove('processing');
   if (error) {
     showToast('error', `Erro na importação: ${error.message}`);
     return;
+  }
+
+  const resumoImportacao = resultadoImportacao?.resumo || {
+    total_linhas: validos.length,
+    linhas_importadas: validos.length,
+    linhas_erro: 0
+  };
+  if (resultadoImportacao?.log_error) {
+    console.warn('Falha ao registrar log da importação:', resultadoImportacao.log_error);
   }
 
   const novosMassas = Number(novos_por_origem?.MASSAS || 0);
@@ -232,18 +244,25 @@ async function handleImport(file) {
     ? `<br/>Identificamos <b>${novosMassas}</b> novos produtos da linha <b>Massas</b> e <b>${novosPendentes}</b> produtos novos foram marcados como <b>PENDENTE</b> para sua revisão.`
     : '';
 
-  const successMessage = `Sucesso! ${validos.length} itens importados com sucesso.`;
+  const successMessage = `Importação finalizada: ${resumoImportacao.linhas_importadas}/${resumoImportacao.total_linhas} linhas importadas com sucesso.`;
   showToast('success', successMessage);
   await Swal.fire({
     icon: 'success',
-    title: successMessage
+    title: successMessage,
+    html: `
+      <div style="text-align:left;">
+        <p><b>Total de linhas:</b> ${resumoImportacao.total_linhas}</p>
+        <p><b>Importadas:</b> ${resumoImportacao.linhas_importadas}</p>
+        <p><b>Com erro:</b> ${resumoImportacao.linhas_erro}</p>
+      </div>
+    `
   });
 
   if (resumoNovos || resumoClassificacao) {
     Swal.fire({
       icon: 'success',
       title: 'Importação concluída',
-      html: `<b>${validos.length}</b> itens salvos em <b>${refDate}</b>.${resumoNovos}${resumoClassificacao}`
+      html: `<b>${resumoImportacao.linhas_importadas}</b> itens salvos em <b>${refDate}</b> (de <b>${resumoImportacao.total_linhas}</b> linhas).${resumoNovos}${resumoClassificacao}`
     });
   }
 }
