@@ -84,6 +84,38 @@ function applyCascadeFilterInMemory(rows, filters) {
   });
 }
 
+function isValidDateValue(value) {
+  if (!value) return false;
+  if (value instanceof Date) return !Number.isNaN(value.getTime());
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const parsed = new Date(trimmed);
+  return !Number.isNaN(parsed.getTime());
+}
+
+function validateHistoricoRow(row = {}) {
+  const erros = [];
+
+  if (!String(row?.codigo_produto || '').trim()) {
+    erros.push('codigo_produto vazio');
+  }
+
+  const custo = Number(row?.custo_total);
+  if (!Number.isFinite(custo)) {
+    erros.push('custo_total inválido');
+  }
+
+  if (!isValidDateValue(row?.data_referencia)) {
+    erros.push('data_referencia inválida');
+  }
+
+  return {
+    valido: erros.length === 0,
+    erros
+  };
+}
+
 async function getHistoricoWithClientFallback(filters) {
   const baseQuery = sb
     .from(TABLES.historico)
@@ -235,14 +267,33 @@ export const api = {
     const logId = createdLog?.id ?? null;
     let linhasImportadas = 0;
     let linhasErro = 0;
+    const erros = [];
 
-    for (const row of (payload || [])) {
+    for (const [index, row] of (payload || []).entries()) {
+      const validacao = validateHistoricoRow(row);
+      if (!validacao.valido) {
+        linhasErro += 1;
+        erros.push({
+          linha: index + 1,
+          tipo: 'validacao',
+          mensagem: validacao.erros.join('; '),
+          row
+        });
+        continue;
+      }
+
       const { error } = await sb
         .from(TABLES.historico)
         .upsert([row], { onConflict: 'codigo_produto, data_referencia' });
 
       if (error) {
         linhasErro += 1;
+        erros.push({
+          linha: index + 1,
+          tipo: 'banco',
+          mensagem: error.message || 'erro ao inserir linha',
+          row
+        });
         continue;
       }
 
@@ -274,6 +325,7 @@ export const api = {
       data: {
         log_id: logId,
         resumo,
+        erros,
         log_error: createLogError || updateLogError || null
       },
       error: null
