@@ -7,6 +7,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const TABLES = {
   historico: 'historico_custos',
+  logImportacao: 'log_importacao',
   dicionario: 'dicionario_produtos',
   origem: 'categorias_origem',
   familia: 'categorias_familia',
@@ -209,6 +210,74 @@ export const api = {
 
   async upsertHistoricoCustos(payload) {
     return sb.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
+  },
+
+  async importarHistoricoCustosComLog(payload, options = {}) {
+    const totalLinhas = Array.isArray(payload) ? payload.length : 0;
+    const inicio = new Date().toISOString();
+    const baseLog = {
+      status: 'processando',
+      total_linhas: totalLinhas,
+      linhas_importadas: 0,
+      linhas_erro: 0,
+      iniciado_em: inicio,
+      finalizado_em: null,
+      user_id: options.userId || null,
+      data_referencia: options.dataReferencia || null
+    };
+
+    const { data: createdLog, error: createLogError } = await sb
+      .from(TABLES.logImportacao)
+      .insert(baseLog)
+      .select('*')
+      .single();
+
+    const logId = createdLog?.id ?? null;
+    let linhasImportadas = 0;
+    let linhasErro = 0;
+
+    for (const row of (payload || [])) {
+      const { error } = await sb
+        .from(TABLES.historico)
+        .upsert([row], { onConflict: 'codigo_produto, data_referencia' });
+
+      if (error) {
+        linhasErro += 1;
+        continue;
+      }
+
+      linhasImportadas += 1;
+    }
+
+    const resumo = {
+      total_linhas: totalLinhas,
+      linhas_importadas: linhasImportadas,
+      linhas_erro: linhasErro
+    };
+
+    const fechamentoLog = {
+      status: 'finalizado',
+      ...resumo,
+      finalizado_em: new Date().toISOString()
+    };
+
+    let updateLogError = null;
+    if (logId) {
+      const { error } = await sb
+        .from(TABLES.logImportacao)
+        .update(fechamentoLog)
+        .eq('id', logId);
+      updateLogError = error;
+    }
+
+    return {
+      data: {
+        log_id: logId,
+        resumo,
+        log_error: createLogError || updateLogError || null
+      },
+      error: null
+    };
   },
 
 
