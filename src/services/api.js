@@ -241,7 +241,7 @@ export const api = {
   },
 
   async upsertHistoricoCustos(payload) {
-    return sb.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto, data_referencia' });
+    return sb.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto,data_referencia' });
   },
 
   async importarHistoricoCustosComLog(payload, options = {}) {
@@ -284,7 +284,7 @@ export const api = {
 
       const { error } = await sb
         .from(TABLES.historico)
-        .upsert([row], { onConflict: 'codigo_produto, data_referencia' });
+        .upsert([row], { onConflict: 'codigo_produto,data_referencia' });
 
       if (error) {
         linhasErro += 1;
