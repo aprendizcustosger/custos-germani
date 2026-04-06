@@ -80,3 +80,44 @@ from variacoes
 where variacao_percentual > 10
    or variacao_percentual < -10
 order by variacao_percentual desc nulls last;
+
+
+-- Query: ranking dos 10 produtos com maior aumento de custo no período
+-- (considera apenas produtos com custo nas duas datas).
+with custo_inicio as (
+  select
+    h.codigo_produto,
+    max(h.descricao) as descricao,
+    max(h.custo_total) as custo_inicio
+  from public.historico_custos h
+  where h.data_referencia = :data_inicio
+  group by h.codigo_produto
+),
+custo_fim as (
+  select
+    h.codigo_produto,
+    max(h.custo_total) as custo_fim
+  from public.historico_custos h
+  where h.data_referencia = :data_fim
+  group by h.codigo_produto
+),
+base as (
+  select
+    i.codigo_produto,
+    i.descricao,
+    i.custo_inicio,
+    f.custo_fim
+  from custo_inicio i
+  inner join custo_fim f
+    on f.codigo_produto = i.codigo_produto
+)
+select
+  b.codigo_produto,
+  b.descricao,
+  b.custo_inicio,
+  b.custo_fim,
+  round(((b.custo_fim - b.custo_inicio) / nullif(b.custo_inicio, 0)) * 100, 2) as variacao_percentual
+from base b
+where b.custo_inicio > 0
+order by variacao_percentual desc
+limit 10;
