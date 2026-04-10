@@ -11,7 +11,16 @@ returns table (
 )
 language plpgsql
 as $$
+declare
+  v_origem_id uuid;
+  v_familia_id uuid;
+  v_agrupamento text;
 begin
+  select origem_id, familia_id, agrupamento_cod
+    into v_origem_id, v_familia_id, v_agrupamento
+  from public.mapa_produtos
+  where codigo_produto = p_codigo_produto;
+
   insert into public.dicionario_produtos (
     codigo_produto,
     descricao,
@@ -27,6 +36,12 @@ begin
     null
   )
   on conflict (codigo_produto) do nothing;
+
+  update public.dicionario_produtos
+  set origem_id = v_origem_id,
+      familia_id = v_familia_id,
+      agrupamento_cod = v_agrupamento
+  where codigo_produto = p_codigo_produto;
 
   insert into public.historico_custos (
     codigo_produto,
