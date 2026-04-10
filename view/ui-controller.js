@@ -244,16 +244,19 @@ async function handleImport(file) {
     ? `<br/>Identificamos <b>${novosMassas}</b> novos produtos da linha <b>Massas</b> e <b>${novosPendentes}</b> produtos novos foram marcados como <b>PENDENTE</b> para sua revisão.`
     : '';
 
-  const successMessage = `Importação finalizada: ${resumoImportacao.linhas_importadas}/${resumoImportacao.total_linhas} linhas importadas com sucesso.`;
+  const successCount = Number(resumoImportacao.linhas_importadas || 0);
+  const errorCount = Number(resumoImportacao.linhas_erro || 0);
+  const successMessage = `${successCount} itens importados com sucesso`;
   showToast('success', successMessage);
   await Swal.fire({
-    icon: 'success',
+    icon: errorCount > 0 ? 'warning' : 'success',
     title: successMessage,
     html: `
       <div style="text-align:left;">
         <p><b>Total de linhas:</b> ${resumoImportacao.total_linhas}</p>
-        <p><b>Importadas:</b> ${resumoImportacao.linhas_importadas}</p>
-        <p><b>Com erro:</b> ${resumoImportacao.linhas_erro}</p>
+        <p><b>Importadas:</b> ${successCount}</p>
+        <p><b>Falhas:</b> ${errorCount}</p>
+        ${errorCount > 0 ? `<p><b>${errorCount} itens falharam</b></p>` : ''}
       </div>
     `
   });

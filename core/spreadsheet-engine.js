@@ -104,7 +104,7 @@ export function mapRowsToPayload(rows, mapping, dataReferencia, userId) {
     data_referencia: dataReferencia,
     user_id: userId,
     operacao_timestamp: new Date().toISOString()
-  })).filter(item => item.codigo_produto.length > 1 && item.custo_total > 0);
+  })).filter(item => item.codigo_produto.length > 0);
 }
 
 export function countValidMappedColumns(mapping) {
