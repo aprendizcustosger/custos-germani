@@ -12,6 +12,22 @@ returns table (
 language plpgsql
 as $$
 begin
+  insert into public.dicionario_produtos (
+    codigo_produto,
+    descricao,
+    origem_id,
+    familia_id,
+    agrupamento_cod
+  )
+  values (
+    p_codigo_produto,
+    p_descricao,
+    null,
+    null,
+    null
+  )
+  on conflict (codigo_produto) do nothing;
+
   insert into public.historico_custos (
     codigo_produto,
     descricao_na_planilha,
