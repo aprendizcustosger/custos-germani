@@ -287,6 +287,10 @@ export const api = {
         .upsert([row], { onConflict: 'codigo_produto,data_referencia' });
 
       if (error) {
+        console.error(error);
+      }
+
+      if (error) {
         linhasErro += 1;
         erros.push({
           linha: index + 1,
