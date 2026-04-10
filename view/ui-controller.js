@@ -2,7 +2,6 @@
 import { api } from '../src/services/api.js';
 import { readWorkbook, scanHeaders, mapRowsToPayload, countValidMappedColumns, REQUIRED_FIELDS } from '../core/spreadsheet-engine.js';
 import { fillSelect, calculateCascadeOptions, buildReportRows, calculateKpis } from '../core/report-engine.js';
-import { splitImportRows } from '../core/heuristic-engine.js';
 
 const state = {
   user: null,
@@ -194,27 +193,13 @@ async function handleImport(file) {
   }
 
   const payload = mapRowsToPayload(rows, mapping, refDate, state.user?.id || null);
-  const preProcessed = splitImportRows(payload, state.masters);
-  const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping), preProcessed.novos_por_familia || {});
+  const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping));
   if (!confirmed) {
     dom.dropZone.classList.remove('processing');
     return;
   }
 
-  const { validos, novos_dicionario, novos_por_origem } = splitImportRows(payload, state.masters);
-
-  if (novos_dicionario.length) {
-    const { error: dictError } = await api.upsertDicionarioProdutos(novos_dicionario);
-    if (dictError) {
-      dom.dropZone.classList.remove('processing');
-      showToast('error', `Erro na importação: ${dictError.message}`);
-      return;
-    }
-
-    state.masters = await api.getMasters();
-  }
-
-  const { data: resultadoImportacao, error } = await api.importarHistoricoCustosComLog(validos, {
+  const { data: resultadoImportacao, error } = await api.importarHistoricoCustosComLog(payload, {
     userId: state.user?.id || null,
     dataReferencia: refDate
   });
@@ -225,24 +210,13 @@ async function handleImport(file) {
   }
 
   const resumoImportacao = resultadoImportacao?.resumo || {
-    total_linhas: validos.length,
-    linhas_importadas: validos.length,
+    total_linhas: payload.length,
+    linhas_importadas: payload.length,
     linhas_erro: 0
   };
   if (resultadoImportacao?.log_error) {
     console.warn('Falha ao registrar log da importação:', resultadoImportacao.log_error);
   }
-
-  const novosMassas = Number(novos_por_origem?.MASSAS || 0);
-  const novosPendentes = Number(novos_por_origem?.PENDENTE || 0);
-
-  const resumoNovos = novos_dicionario.length
-    ? ` ${novos_dicionario.length} novos produtos foram adicionados ao dicionário para classificação posterior.`
-    : '';
-
-  const resumoClassificacao = novos_dicionario.length
-    ? `<br/>Identificamos <b>${novosMassas}</b> novos produtos da linha <b>Massas</b> e <b>${novosPendentes}</b> produtos novos foram marcados como <b>PENDENTE</b> para sua revisão.`
-    : '';
 
   const successCount = Number(resumoImportacao.linhas_importadas || 0);
   const errorCount = Number(resumoImportacao.linhas_erro || 0);
@@ -260,14 +234,6 @@ async function handleImport(file) {
       </div>
     `
   });
-
-  if (resumoNovos || resumoClassificacao) {
-    Swal.fire({
-      icon: 'success',
-      title: 'Importação concluída',
-      html: `<b>${resumoImportacao.linhas_importadas}</b> itens salvos em <b>${refDate}</b> (de <b>${resumoImportacao.total_linhas}</b> linhas).${resumoNovos}${resumoClassificacao}`
-    });
-  }
 }
 
 async function requestManualMapping(headers, current) {
@@ -296,15 +262,19 @@ async function requestManualMapping(headers, current) {
 }
 
 async function confirmImport(totalProdutos, totalColunasValidas, familySummary = {}) {
+  const hasFamilySummary = Object.keys(familySummary).length > 0;
   const summaryHtml = Object.entries(familySummary)
     .sort((a, b) => b[1] - a[1])
     .map(([familia, total]) => `• <b>${familia}</b>: ${total}`)
     .join('<br/>');
+  const familySection = hasFamilySummary
+    ? `<br/><br/>Famílias categorizadas:<br/>${summaryHtml}`
+    : '';
 
   const result = await Swal.fire({
     icon: 'question',
     title: 'Resumo da detecção',
-    html: `Detectamos <b>${totalProdutos}</b> produtos e <b>${totalColunasValidas}</b> colunas válidas.<br/><br/>Famílias categorizadas:<br/>${summaryHtml || '• <b>PENDENTE</b>: 0'}<br/><br/>Deseja prosseguir?`,
+    html: `Detectamos <b>${totalProdutos}</b> produtos e <b>${totalColunasValidas}</b> colunas válidas.${familySection}<br/><br/>Deseja prosseguir?`,
     showCancelButton: true,
     confirmButtonText: 'Prosseguir',
     cancelButtonText: 'Cancelar'
