@@ -282,20 +282,24 @@ export const api = {
         continue;
       }
 
-      const { error } = await sb
-        .from(TABLES.historico)
-        .upsert([row], { onConflict: 'codigo_produto,data_referencia' });
+      const { data: rpcData, error } = await sb.rpc('inserir_custo', {
+        p_codigo_produto: row.codigo_produto,
+        p_descricao: row.descricao,
+        p_custo_total: row.custo_total,
+        p_data_referencia: row.data_referencia
+      });
 
-      if (error) {
-        console.error(error);
-      }
+      const rpcResult = Array.isArray(rpcData) ? rpcData[0] : null;
+      const rpcFailed = error || rpcResult?.sucesso === false;
 
-      if (error) {
+      if (rpcFailed) {
+        const erroDetalhado = error?.message || rpcResult?.mensagem || 'erro ao inserir linha';
+        console.error('Erro ao importar linha via inserir_custo:', { linha: index + 1, erro: erroDetalhado, row });
         linhasErro += 1;
         erros.push({
           linha: index + 1,
           tipo: 'banco',
-          mensagem: error.message || 'erro ao inserir linha',
+          mensagem: erroDetalhado,
           row
         });
         continue;
