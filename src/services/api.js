@@ -301,12 +301,16 @@ export const api = {
         continue;
       }
 
-      const { data: rpcData, error } = await sb.rpc('inserir_custo', {
-        p_codigo_produto: row.codigo_produto,
-        p_descricao: row.descricao,
-        p_custo_total: row.custo_total,
+      const payloadCusto = {
+        p_codigo_produto: String(row.codigo_produto || '').trim(),
+        p_descricao: row.descricao ?? null,
+        p_custo_total: Number(row.custo_total),
         p_data_referencia: row.data_referencia
-      });
+      };
+
+      // Importante: inserir_custo recebe somente dados de custo.
+      // Qualquer categorização (origem/família/agrupamento) é tratada em fluxo separado.
+      const { data: rpcData, error } = await sb.rpc('inserir_custo', payloadCusto);
 
       const rpcResult = Array.isArray(rpcData) ? rpcData[0] : null;
       const rpcFailed = error || rpcResult?.sucesso === false;
