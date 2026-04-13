@@ -30,12 +30,18 @@ function resolveMasterLabel(row) {
   return row?.descricao ?? row?.nome ?? row?.label ?? row?.titulo ?? null;
 }
 
+function isNullLike(value) {
+  if (value === null || value === undefined) return true;
+  const normalized = String(value).trim().toLowerCase();
+  return !normalized || normalized === 'null' || normalized === 'undefined';
+}
+
 function normalizeMasterRows(rows = []) {
   return rows
     .map(row => {
       const id = resolveMasterId(row);
       const descricao = resolveMasterLabel(row);
-      if (!id || !descricao) return null;
+      if (isNullLike(id) || isNullLike(descricao)) return null;
       return { ...row, id, descricao };
     })
     .filter(Boolean);
@@ -204,37 +210,50 @@ export const api = {
   },
 
   async getMasters() {
-    const [{ data: origens, error: origensError }, { data: familias, error: familiasError }, { data: agrupamentos, error: agrupamentosError }, { data: dicionario, error: dicionarioError }] = await Promise.all([
+    const [{ data: mapaProdutos, error: mapaProdutosError }, { data: origensRaw, error: origensError }, { data: familiasRaw, error: familiasError }, { data: agrupamentosRaw, error: agrupamentosError }, { data: dicionario, error: dicionarioError }] = await Promise.all([
+      sb.from('mapa_produtos').select('origem_id, familia_id, agrupamento_cod'),
       sb.from(TABLES.origem).select('*').order('descricao'),
       sb.from(TABLES.familia).select('*').order('descricao'),
       sb.from(TABLES.agrupamento).select('*').order('descricao'),
       sb.from(TABLES.dicionario).select('*')
     ]);
 
-    const error = origensError || familiasError || agrupamentosError || dicionarioError;
+    const error = mapaProdutosError || origensError || familiasError || agrupamentosError || dicionarioError;
     if (error) {
       return { origens: [], familias: [], agrupamentos: [], dicionario: [], error };
     }
 
-    const normalizedOrigens = normalizeMasterRows(origens || []);
-    const normalizedFamilias = normalizeMasterRows(familias || []);
-    const normalizedAgrupamentos = normalizeMasterRows(agrupamentos || []);
+    const mapaSetByField = (fieldName) => new Set((mapaProdutos || [])
+      .map(item => item?.[fieldName])
+      .filter(value => !isNullLike(value))
+      .map(value => String(value).trim()));
+
+    const origemIdsPermitidos = mapaSetByField('origem_id');
+    const familiaIdsPermitidos = mapaSetByField('familia_id');
+    const agrupamentoIdsPermitidos = mapaSetByField('agrupamento_cod');
+
+    const normalizedOrigens = normalizeMasterRows((origensRaw || [])
+      .filter(row => origemIdsPermitidos.has(String(resolveMasterId(row)).trim())));
+    const normalizedFamilias = normalizeMasterRows((familiasRaw || [])
+      .filter(row => familiaIdsPermitidos.has(String(resolveMasterId(row)).trim())));
+    const normalizedAgrupamentos = normalizeMasterRows((agrupamentosRaw || [])
+      .filter(row => agrupamentoIdsPermitidos.has(String(resolveMasterId(row)).trim())));
 
     const agrupamentosFromDictionary = [...new Set((dicionario || [])
       .map(item => item?.agrupamento_cod)
       .filter(Boolean)
       .map(value => String(value).trim())
-      .filter(Boolean))]
+      .filter(value => !isNullLike(value)))]
       .map(id => {
         const existing = normalizedAgrupamentos.find(item => String(item.id) === id);
         if (existing) return existing;
-        return { id, descricao: id };
+        return null;
       });
 
     return {
       origens: normalizedOrigens,
       familias: normalizedFamilias,
-      agrupamentos: agrupamentosFromDictionary,
+      agrupamentos: agrupamentosFromDictionary.filter(Boolean),
       dicionario: dicionario || [],
       error: null
     };
