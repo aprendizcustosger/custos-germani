@@ -98,3 +98,25 @@ O sistema prioriza:
 - tolerância a planilhas imperfeitas,
 - clareza de feedback para o usuário final,
 - e consistência entre importação, categorização e auditoria.
+
+---
+
+## 🧩 Módulo: Higienização dos filtros (Origem, Família, Agrupamento)
+
+### Objetivo
+Garantir que os dropdowns exibam **somente descrições válidas**, sem:
+- valores `NULL`,
+- strings `"null"` / `"undefined"`,
+- códigos técnicos isolados quando existir descrição cadastrada.
+
+### Regras aplicadas
+1. **Fonte da hierarquia**: a lista é derivada de `mapa_produtos` + tabelas de categorias.
+2. **Família**: exibe descrição da `categorias_familia` (ex.: `1002 = ACUCARES`).
+3. **Agrupamento**: exibe descrição da `categorias_agrupamento` (ex.: `M024 = MASSAS COM OVOS`).
+4. **Origem**: exibe descrição da `categorias_origem` (ex.: `400 = MASSA PRODUZIDA FARDO/CX`).
+5. **Frontend**: aplica filtro defensivo antes de montar qualquer `<select>`.
+
+### Resultado esperado na UI
+- `TODAS/TODOS` + apenas opções válidas.
+- Nunca mostrar `"null"` como item selecionável.
+- Nunca tratar `M024` como Família; `M024` pertence ao Agrupamento.
