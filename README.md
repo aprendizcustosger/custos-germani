@@ -44,6 +44,32 @@ Define peso/tipo de embalagem (ex.: `400g`, `5kg`, `Granel`).
 ### D) ITEM (SKU Final)
 Produto específico (ex.: `Biscoito Recheado Chocolate 400g`).
 
+### Estrutura hierárquica de auditoria (cascata progressiva)
+O sistema de auditoria é baseado em uma estrutura hierárquica em cascata, permitindo análise progressiva dos dados na ordem:
+
+**ORIGEM → FAMÍLIA → AGRUPAMENTO → PRODUTO**
+
+#### Funcionamento por nível
+1. **Origem (nível macro)**: representa a unidade produtiva (ex.: `BISCOITOS`, `MASSAS`, `MOAGEM`).
+2. **Família (nível técnico)**: subdivide os produtos por tipo (ex.: `REPROCESSOS`, `FARINHAS`, `ACUCARES`).
+3. **Agrupamento (nível operacional)**: classifica por categoria funcional (ex.: `M024 = MASSAS COM OVOS`).
+4. **Produto (nível final)**: item específico (SKU).
+
+#### Regras do sistema
+- **Filtros dependentes (cascata)**:
+  - selecionar uma **Origem** restringe as **Famílias** disponíveis;
+  - selecionar uma **Família** restringe os **Agrupamentos**;
+  - e assim sucessivamente até **Produto**.
+- **Fonte única de categorização**: os dados exibidos devem sempre respeitar `mapa_produtos`.
+- **Produtos sem categorização**: permanecem visíveis com valores `NULL`, sem quebrar a auditoria.
+- **Análise parcial permitida**: o usuário pode filtrar apenas por **Origem** (ou até qualquer nível intermediário) sem obrigatoriedade de preencher todos os níveis.
+
+#### Objetivo operacional
+Permitir auditoria progressiva do macro ao detalhe, facilitando:
+- identificação de distorções de custo;
+- comparação entre categorias;
+- análise por linha produtiva.
+
 ---
 
 ## 💾 3. Estrutura do Banco de Dados (Supabase)
