@@ -120,3 +120,137 @@ Garantir que os dropdowns exibam **somente descrições válidas**, sem:
 - `TODAS/TODOS` + apenas opções válidas.
 - Nunca mostrar `"null"` como item selecionável.
 - Nunca tratar `M024` como Família; `M024` pertence ao Agrupamento.
+
+---
+
+## 🛠️ Correção de Categorização via `mapa_produtos` (Supabase/PostgreSQL)
+
+> **Regra mandatória de produção**:  
+> `codigo_produto → mapa_produtos → categorias`  
+> **Sem inferência por descrição como regra principal.**
+
+### Escopo da correção
+- Preencher `mapa_produtos` apenas com IDs válidos (`uuid`) vindos das tabelas de categoria.
+- Ignorar linhas inconsistentes (código sem correspondência em categoria).
+- Não sobrescrever registros já existentes em `mapa_produtos`.
+- Atualizar `dicionario_produtos` exclusivamente a partir do `mapa_produtos`.
+- Entregar diagnósticos para produtos sem categorização.
+
+### Pré-condição de tipos (uuid vs text)
+Se `origem_id` e `familia_id` estiverem como `text` em `dicionario_produtos`, alinhar para `uuid` **antes** dos updates finais.
+
+```sql
+-- 0) (Opcional, executar apenas se necessário)
+-- Converter colunas para UUID em dicionario_produtos sem perda de consistência.
+ALTER TABLE dicionario_produtos
+  ALTER COLUMN origem_id TYPE uuid USING NULLIF(origem_id::text, '')::uuid,
+  ALTER COLUMN familia_id TYPE uuid USING NULLIF(familia_id::text, '')::uuid;
+```
+
+### 1) SQL completo para popular `mapa_produtos` corretamente
+
+> **Premissa:** existe uma tabela de staging (ex.: `stg_mapa_produtos`) com os campos:  
+> `codigo_produto`, `origem_cod`, `familia_cod`, `agrupamento_cod`.
+
+```sql
+BEGIN;
+
+WITH fonte AS (
+  SELECT
+    TRIM(s.codigo_produto)            AS codigo_produto,
+    TRIM(s.origem_cod)                AS origem_cod,
+    TRIM(s.familia_cod)               AS familia_cod,
+    NULLIF(TRIM(s.agrupamento_cod), '') AS agrupamento_cod
+  FROM stg_mapa_produtos s
+  WHERE NULLIF(TRIM(s.codigo_produto), '') IS NOT NULL
+),
+normalizada AS (
+  SELECT DISTINCT ON (f.codigo_produto)
+    f.codigo_produto,
+    f.origem_cod,
+    f.familia_cod,
+    f.agrupamento_cod
+  FROM fonte f
+  ORDER BY f.codigo_produto
+),
+convertida AS (
+  SELECT
+    n.codigo_produto,
+    co.id AS origem_id,       -- UUID real
+    cf.id AS familia_id,      -- UUID real
+    n.agrupamento_cod
+  FROM normalizada n
+  JOIN categorias_origem  co ON co.codigo = n.origem_cod
+  JOIN categorias_familia cf ON cf.codigo = n.familia_cod
+  LEFT JOIN categorias_agrupamento ca ON ca.id = n.agrupamento_cod
+  WHERE n.agrupamento_cod IS NULL OR ca.id IS NOT NULL
+)
+INSERT INTO mapa_produtos (
+  codigo_produto,
+  origem_id,
+  familia_id,
+  agrupamento_cod
+)
+SELECT
+  c.codigo_produto,
+  c.origem_id,
+  c.familia_id,
+  c.agrupamento_cod
+FROM convertida c
+ON CONFLICT (codigo_produto) DO NOTHING;
+
+COMMIT;
+```
+
+### 2) SQL para atualizar `dicionario_produtos` com base no mapa
+
+```sql
+UPDATE dicionario_produtos dp
+SET
+  origem_id = mp.origem_id,
+  familia_id = mp.familia_id,
+  agrupamento_cod = mp.agrupamento_cod
+FROM mapa_produtos mp
+WHERE dp.codigo_produto = mp.codigo_produto
+  AND (
+    dp.origem_id IS DISTINCT FROM mp.origem_id OR
+    dp.familia_id IS DISTINCT FROM mp.familia_id OR
+    dp.agrupamento_cod IS DISTINCT FROM mp.agrupamento_cod
+  );
+```
+
+### 3) SQL de diagnóstico (produtos sem categorização no mapa)
+
+```sql
+SELECT dp.codigo_produto
+FROM dicionario_produtos dp
+LEFT JOIN mapa_produtos mp
+  ON dp.codigo_produto = mp.codigo_produto
+WHERE mp.codigo_produto IS NULL;
+```
+
+### 4) Diagnóstico adicional de integridade (recomendado)
+
+```sql
+-- 4.1) Registros inválidos no mapa (não deveria retornar linhas)
+SELECT mp.codigo_produto, mp.origem_id, mp.familia_id
+FROM mapa_produtos mp
+LEFT JOIN categorias_origem  co ON co.id = mp.origem_id
+LEFT JOIN categorias_familia cf ON cf.id = mp.familia_id
+WHERE co.id IS NULL OR cf.id IS NULL;
+
+-- 4.2) Produtos do dicionário ainda sem origem/família após sincronização
+SELECT dp.codigo_produto
+FROM dicionario_produtos dp
+WHERE dp.origem_id IS NULL
+   OR dp.familia_id IS NULL;
+```
+
+### 5) Regras finais de produção
+- Nunca gravar código (`400`, `40001`) direto em `origem_id`/`familia_id`.
+- Sempre converter `codigo -> id (uuid)` via `categorias_origem` e `categorias_familia`.
+- Join final de negócio sempre em tipos compatíveis:
+  - `uuid ↔ uuid` para IDs.
+  - `text ↔ text` para `codigo_produto` e `agrupamento_cod`.
+- `descricao` não participa da regra principal de categorização.
+- Para preservar dados existentes, usar `ON CONFLICT DO NOTHING` no `mapa_produtos`.
