@@ -75,8 +75,7 @@ export function suggestCategory(product, masters = { origens: [], familias: [], 
 
   if (matchedRule) {
     const fixedId = findMasterIdByFixedCode(masters.origens, matchedRule.id)
-      || findMasterIdByFixedCode(masters.familias, matchedRule.id)
-      || matchedRule.id;
+      || findMasterIdByFixedCode(masters.familias, matchedRule.id);
     const origem_id = fixedId;
     const familia_id = fixedId;
 
@@ -132,22 +131,10 @@ export function splitImportRows(rows, masters = { dicionario: [] }) {
     if (dictByCode.has(codigo)) return;
     if (novos_dicionario.some(x => normalizeProductCode(x.codigo_produto) === codigo)) return;
 
-    let origem_id = suggestion.origem_id || 'M000';
-    let familia_id = suggestion.familia_id || 'M000';
+    let origem_id = suggestion.origem_id || null;
+    let familia_id = suggestion.familia_id || null;
     let sugestao_origem = suggestion.origem_hint;
     let sugestao_familia = suggestion.familia_hint;
-
-    if (normalizedDesc.includes('biscoito')) {
-      familia_id = 'M012';
-      origem_id = 'M012';
-      sugestao_origem = 'M012';
-      sugestao_familia = 'M012';
-    } else if (normalizedDesc.includes('massa')) {
-      familia_id = 'M024';
-      origem_id = 'M024';
-      sugestao_origem = 'M024';
-      sugestao_familia = 'M024';
-    }
 
     novos_dicionario.push({
       codigo_produto: codigo,

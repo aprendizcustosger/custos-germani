@@ -5,7 +5,7 @@ import { fillSelect, calculateCascadeOptions, buildReportRows, calculateKpis } f
 
 const state = {
   user: null,
-  masters: { origens: [], familias: [], agrupamentos: [], dicionario: [] },
+  masters: { origens: [], familias: [], agrupamentos: [], dicionario: [], hierarquia: [] },
   chart: null,
   trendChart: null
 };
@@ -63,8 +63,12 @@ async function loadMasters(options = {}) {
     origens: masters.origens || [],
     familias: masters.familias || [],
     agrupamentos: masters.agrupamentos || [],
-    dicionario: masters.dicionario || []
+    dicionario: masters.dicionario || [],
+    hierarquia: masters.hierarquia || []
   };
+  if (masters.diagnostico_sem_mapa?.length) {
+    console.warn(`Diagnóstico: ${masters.diagnostico_sem_mapa.length} produto(s) sem registro em mapa_produtos.`);
+  }
   fillSelect(dom.selO, state.masters.origens.map(x => ({ value: String(x.id), label: x.descricao })), { value: 'TODAS', label: 'TODAS' }, dom.selO.value || 'TODAS');
   refreshCascade();
 }

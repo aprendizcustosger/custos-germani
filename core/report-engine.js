@@ -21,7 +21,8 @@ function isNullLike(value) {
 }
 
 export function calculateCascadeOptions(state, masters) {
-  const dictionary = (masters.dicionario || []).map(item => ({
+  const hierarchySource = (masters.hierarquia || []).length ? masters.hierarquia : (masters.dicionario || []);
+  const dictionary = hierarchySource.map(item => ({
     ...item,
     codigo_produto: item?.codigo_produto ?? item?.produto ?? item?.codigo ?? null,
     descricao: item?.descricao ?? item?.nome ?? item?.produto_descricao ?? null
@@ -74,7 +75,9 @@ export function calculateCascadeOptions(state, masters) {
 }
 
 export function buildReportRows(historico, masters = { origens: [], familias: [], agrupamentos: [] }) {
-  const getDictionary = (item) => {
+  const getMapa = (item) => {
+    if (Array.isArray(item?.mapa_produtos)) return item.mapa_produtos[0] || {};
+    if (item?.mapa_produtos) return item.mapa_produtos || {};
     if (Array.isArray(item?.dicionario_produtos)) return item.dicionario_produtos[0] || {};
     return item?.dicionario_produtos || {};
   };
@@ -91,7 +94,7 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
     const ini = Number(first.custo_total || 0);
     const fim = Number(last.custo_total || 0);
     const variacao = ini > 0 ? ((fim - ini) / ini) * 100 : 0;
-    const dict = getDictionary(last);
+    const dict = getMapa(last);
     const origemCod = String(dict.origem_id || '');
     const familiaCod = String(dict.familia_id || '');
     const agrupamentoCod = String(dict.agrupamento_cod || '');
