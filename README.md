@@ -118,6 +118,11 @@ Exemplo: apenas **Origem** selecionada já deve permitir renderização.
 
 ---
 
+## 📚 Regra de Documentação Contínua
+Sempre que houver mudança em engenharia de dados, banco, regras de categorização ou fluxo de auditoria, a documentação correspondente deve ser atualizada no mesmo ciclo (README e/ou `docs/engenharia-dados-supabase.md`).
+
+---
+
 ## ✅ Princípio Operacional
 O sistema prioriza:
 - robustez com dados reais de ERP/SAP,
