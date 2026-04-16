@@ -1,4 +1,10 @@
--- Tabela de mapeamento para lookup de categorização na importação.
+-- Normalização de categorização (fonte única: mapa_produtos)
+-- Objetivos:
+-- 1) Garantir que mapa_produtos use UUID nas FKs (origem_id/familia_id).
+-- 2) Impedir joins finais baseados em códigos de negócio (400, 40001, M024).
+-- 3) Popular/atualizar mapa_produtos a partir de staging com conversão codigo -> UUID.
+-- 4) Sincronizar dicionario_produtos como tabela auxiliar.
+
 create table if not exists public.mapa_produtos (
   codigo_produto text primary key,
   origem_id uuid,
@@ -6,87 +12,79 @@ create table if not exists public.mapa_produtos (
   agrupamento_cod text
 );
 
--- Garante categorização automática no mapa após inserção/atualização no dicionário.
--- Regras:
--- 1) Nunca grava código numérico em campo UUID: converte via tabelas de categorias.
--- 2) Exige mapeamento completo (origem/família/agrupamento) para evitar NULL no mapa.
--- 3) Faz UPSERT por codigo_produto.
-create or replace function public.sync_mapa_produto_por_dicionario()
-returns trigger
-language plpgsql
-as $$
-declare
-  v_origem_id uuid;
-  v_familia_id uuid;
-  v_agrupamento_cod text;
-begin
-  select co.id, cf.id, nullif(btrim(new.agrupamento_cod), '')
-    into v_origem_id, v_familia_id, v_agrupamento_cod
-  from public.categorias_origem co
+create index if not exists idx_mapa_hierarquia
+  on public.mapa_produtos (origem_id, familia_id, agrupamento_cod);
+
+-- UPSERT oficial a partir de staging (stg_mapa_produtos)
+-- Campos esperados em staging: codigo_produto, origem_cod, familia_cod, agrupamento_cod.
+with fonte as (
+  select
+    trim(s.codigo_produto) as codigo_produto,
+    trim(s.origem_cod) as origem_cod,
+    trim(s.familia_cod) as familia_cod,
+    nullif(trim(s.agrupamento_cod), '') as agrupamento_cod
+  from public.stg_mapa_produtos s
+  where nullif(trim(s.codigo_produto), '') is not null
+),
+normalizada as (
+  select distinct on (f.codigo_produto)
+    f.codigo_produto,
+    f.origem_cod,
+    f.familia_cod,
+    f.agrupamento_cod
+  from fonte f
+  order by f.codigo_produto
+),
+convertida as (
+  select
+    n.codigo_produto,
+    co.id as origem_id,
+    cf.id as familia_id,
+    n.agrupamento_cod
+  from normalizada n
+  join public.categorias_origem co
+    on co.codigo = n.origem_cod
   join public.categorias_familia cf
-    on cf.codigo = new.familia_cod
-  where co.codigo = new.origem_cod;
-
-  if v_origem_id is null then
-    raise exception using
-      message = format(
-        'Não foi possível categorizar %s: origem_cod %s não encontrada em categorias_origem.',
-        new.codigo_produto,
-        coalesce(new.origem_cod, '<NULL>')
-      );
-  end if;
-
-  if v_familia_id is null then
-    raise exception using
-      message = format(
-        'Não foi possível categorizar %s: familia_cod %s não encontrada em categorias_familia.',
-        new.codigo_produto,
-        coalesce(new.familia_cod, '<NULL>')
-      );
-  end if;
-
-  if v_agrupamento_cod is null then
-    raise exception using
-      message = format(
-        'Não foi possível categorizar %s: agrupamento_cod ausente no dicionario_produtos.',
-        new.codigo_produto
-      );
-  end if;
-
-  insert into public.mapa_produtos (codigo_produto, origem_id, familia_id, agrupamento_cod)
-  values (new.codigo_produto, v_origem_id, v_familia_id, v_agrupamento_cod)
-  on conflict (codigo_produto)
-  do update set
-    origem_id = excluded.origem_id,
-    familia_id = excluded.familia_id,
-    agrupamento_cod = excluded.agrupamento_cod;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_sync_mapa_produtos_dicionario on public.dicionario_produtos;
-create trigger trg_sync_mapa_produtos_dicionario
-after insert or update of origem_cod, familia_cod, agrupamento_cod, codigo_produto
-on public.dicionario_produtos
-for each row
-execute function public.sync_mapa_produto_por_dicionario();
-
--- Backfill/ressincronização em lote para dados já existentes no dicionário.
-insert into public.mapa_produtos (codigo_produto, origem_id, familia_id, agrupamento_cod)
+    on cf.codigo = n.familia_cod
+  left join public.categorias_agrupamento ca
+    on ca.id::text = n.agrupamento_cod
+  where n.agrupamento_cod is null or ca.id is not null
+)
+insert into public.mapa_produtos (
+  codigo_produto,
+  origem_id,
+  familia_id,
+  agrupamento_cod
+)
 select
-  dp.codigo_produto,
-  co.id as origem_id,
-  cf.id as familia_id,
-  dp.agrupamento_cod
-from public.dicionario_produtos dp
-join public.categorias_origem co
-  on dp.origem_cod = co.codigo
-join public.categorias_familia cf
-  on dp.familia_cod = cf.codigo
-where nullif(btrim(dp.agrupamento_cod), '') is not null
+  c.codigo_produto,
+  c.origem_id,
+  c.familia_id,
+  c.agrupamento_cod
+from convertida c
 on conflict (codigo_produto)
 do update set
   origem_id = excluded.origem_id,
   familia_id = excluded.familia_id,
   agrupamento_cod = excluded.agrupamento_cod;
+
+-- Sincronização auxiliar: dicionario_produtos herda categorização do mapa (não é fonte da verdade).
+update public.dicionario_produtos dp
+set
+  origem_id = mp.origem_id,
+  familia_id = mp.familia_id,
+  agrupamento_cod = mp.agrupamento_cod
+from public.mapa_produtos mp
+where dp.codigo_produto = mp.codigo_produto
+  and (
+    dp.origem_id is distinct from mp.origem_id or
+    dp.familia_id is distinct from mp.familia_id or
+    dp.agrupamento_cod is distinct from mp.agrupamento_cod
+  );
+
+-- Diagnóstico obrigatório: produtos no dicionário sem mapeamento oficial.
+select dp.codigo_produto
+from public.dicionario_produtos dp
+left join public.mapa_produtos mp
+  on dp.codigo_produto = mp.codigo_produto
+where mp.codigo_produto is null;

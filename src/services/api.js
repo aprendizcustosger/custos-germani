@@ -11,7 +11,8 @@ const TABLES = {
   dicionario: 'dicionario_produtos',
   origem: 'categorias_origem',
   familia: 'categorias_familia',
-  agrupamento: 'categorias_agrupamento'
+  agrupamento: 'categorias_agrupamento',
+  mapa: 'mapa_produtos'
 };
 
 export const MASTER_ADMIN = {
@@ -51,40 +52,26 @@ function resolveLoginToEmail(login) {
   return login === MASTER_ADMIN.username ? MASTER_ADMIN.email : login;
 }
 
-function isRelationshipCacheError(error) {
-  return String(error?.message || '').toLowerCase().includes('could not find a relationship');
-}
-
 function isMissingColumnError(error, columnName) {
   const message = String(error?.message || '').toLowerCase();
   return message.includes(`column ${TABLES.historico}.${String(columnName).toLowerCase()} does not exist`);
 }
 
 function normalizeDictionaryPayloadItem(item) {
-  const text = String(item?.descricao || item?.sugestao_familia || item?.sugestao_origem || '').toUpperCase();
-  const normalized = {
+  return {
     codigo_produto: item.codigo_produto,
-    origem_id: item.origem_id,
-    familia_id: item.familia_id,
+    origem_id: isNullLike(item?.origem_id) ? null : item.origem_id,
+    familia_id: isNullLike(item?.familia_id) ? null : item.familia_id,
     agrupamento_cod: item.agrupamento_cod || null
   };
-
-  const isBiscoito = text.includes('BISCOITO');
-  const isMassa = text.includes('MASSA');
-  const keywordId = isBiscoito ? 'M012' : (isMassa ? 'M024' : 'M000');
-
-  if (!normalized.origem_id) normalized.origem_id = keywordId;
-  if (!normalized.familia_id) normalized.familia_id = keywordId;
-
-  return normalized;
 }
 
 function applyCascadeFilterInMemory(rows, filters) {
   return (rows || []).filter(item => {
-    const dict = item.dicionario_produtos;
-    if (filters.origem !== 'TODAS' && String(dict?.origem_id) !== String(filters.origem)) return false;
-    if (filters.familia !== 'TODAS' && String(dict?.familia_id) !== String(filters.familia)) return false;
-    if (filters.agrupamento !== 'TODOS' && String(dict?.agrupamento_cod) !== String(filters.agrupamento)) return false;
+    const mapa = item.mapa_produtos;
+    if (filters.origem !== 'TODAS' && String(mapa?.origem_id) !== String(filters.origem)) return false;
+    if (filters.familia !== 'TODAS' && String(mapa?.familia_id) !== String(filters.familia)) return false;
+    if (filters.agrupamento !== 'TODOS' && String(mapa?.agrupamento_cod) !== String(filters.agrupamento)) return false;
     if (filters.item !== 'TODOS' && String(item.codigo_produto) !== String(filters.item)) return false;
     return true;
   });
@@ -122,6 +109,35 @@ function validateHistoricoRow(row = {}) {
   };
 }
 
+function mapHierarchyRows(mapaProdutos = [], dicionario = []) {
+  const dicionarioByCodigo = new Map((dicionario || [])
+    .filter(item => !isNullLike(item?.codigo_produto))
+    .map(item => [String(item.codigo_produto).trim(), item]));
+
+  return (mapaProdutos || [])
+    .filter(item => !isNullLike(item?.codigo_produto))
+    .map(item => {
+      const codigoProduto = String(item.codigo_produto).trim();
+      const dict = dicionarioByCodigo.get(codigoProduto);
+      return {
+        codigo_produto: codigoProduto,
+        origem_id: item?.origem_id ?? null,
+        familia_id: item?.familia_id ?? null,
+        agrupamento_cod: item?.agrupamento_cod ?? null,
+        descricao: dict?.descricao || null
+      };
+    });
+}
+
+function sanitizeHierarchyRows(rows = []) {
+  return rows.filter(item =>
+    !isNullLike(item?.codigo_produto)
+    && !isNullLike(item?.origem_id)
+    && !isNullLike(item?.familia_id)
+    && !isNullLike(item?.agrupamento_cod)
+  );
+}
+
 async function getHistoricoWithClientFallback(filters) {
   const baseQuery = sb
     .from(TABLES.historico)
@@ -151,36 +167,42 @@ async function getHistoricoWithClientFallback(filters) {
   if (!historicoBase?.length) return { data: [], error: null };
 
   const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
-  const { data: dicionarioRows, error: dicionarioError } = await sb
-    .from(TABLES.dicionario)
-    .select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod')
-    .in('codigo_produto', codigos);
+  const [{ data: dicionarioRows, error: dicionarioError }, { data: mapaRows, error: mapaError }] = await Promise.all([
+    sb.from(TABLES.dicionario).select('codigo_produto, descricao').in('codigo_produto', codigos),
+    sb.from(TABLES.mapa).select('codigo_produto, origem_id, familia_id, agrupamento_cod').in('codigo_produto', codigos)
+  ]);
 
   if (dicionarioError) return { data: null, error: dicionarioError };
+  if (mapaError) return { data: null, error: mapaError };
 
   const dicionarioByCodigo = new Map((dicionarioRows || []).map(row => [String(row.codigo_produto), row]));
+  const mapaByCodigo = new Map((mapaRows || []).map(row => [String(row.codigo_produto), row]));
+
   const enrichedRows = historicoBase.map(item => ({
     ...item,
     descricao: item.descricao || dicionarioByCodigo.get(String(item.codigo_produto))?.descricao || null,
-    dicionario_produtos: dicionarioByCodigo.get(String(item.codigo_produto)) || null
+    mapa_produtos: mapaByCodigo.get(String(item.codigo_produto)) || null
   }));
 
   return { data: applyCascadeFilterInMemory(enrichedRows, filters), error: null };
 }
 
-async function getHistoricoWithRelations(filters) {
-  let query = sb
-    .from(TABLES.historico)
-    .select('*, dicionario_produtos(origem_id, familia_id, agrupamento_cod)')
-    .gte('data_referencia', filters.start)
-    .lte('data_referencia', filters.end);
+async function runDiagnosticoSemMapa() {
+  const query = `
+    SELECT dp.codigo_produto
+    FROM dicionario_produtos dp
+    LEFT JOIN mapa_produtos mp
+      ON dp.codigo_produto = mp.codigo_produto
+    WHERE mp.codigo_produto IS NULL;
+  `;
 
-  if (filters.origem !== 'TODAS') query = query.eq('dicionario_produtos.origem_id', filters.origem);
-  if (filters.familia !== 'TODAS') query = query.eq('dicionario_produtos.familia_id', filters.familia);
-  if (filters.agrupamento !== 'TODOS') query = query.eq('dicionario_produtos.agrupamento_cod', filters.agrupamento);
-  if (filters.item !== 'TODOS') query = query.eq('codigo_produto', filters.item);
+  const { data, error } = await sb.rpc('run_sql', { query });
+  if (error) {
+    console.warn('Diagnóstico de mapa_produtos indisponível (RPC run_sql não encontrada).', error?.message || error);
+    return [];
+  }
 
-  return query.order('data_referencia', { ascending: true });
+  return Array.isArray(data) ? data : [];
 }
 
 export const api = {
@@ -211,16 +233,16 @@ export const api = {
 
   async getMasters() {
     const [{ data: mapaProdutos, error: mapaProdutosError }, { data: origensRaw, error: origensError }, { data: familiasRaw, error: familiasError }, { data: agrupamentosRaw, error: agrupamentosError }, { data: dicionario, error: dicionarioError }] = await Promise.all([
-      sb.from('mapa_produtos').select('origem_id, familia_id, agrupamento_cod'),
+      sb.from(TABLES.mapa).select('codigo_produto, origem_id, familia_id, agrupamento_cod'),
       sb.from(TABLES.origem).select('*').order('descricao'),
       sb.from(TABLES.familia).select('*').order('descricao'),
       sb.from(TABLES.agrupamento).select('*').order('descricao'),
-      sb.from(TABLES.dicionario).select('*')
+      sb.from(TABLES.dicionario).select('codigo_produto, descricao')
     ]);
 
     const error = mapaProdutosError || origensError || familiasError || agrupamentosError || dicionarioError;
     if (error) {
-      return { origens: [], familias: [], agrupamentos: [], dicionario: [], error };
+      return { origens: [], familias: [], agrupamentos: [], dicionario: [], hierarquia: [], diagnostico_sem_mapa: [], error };
     }
 
     const mapaSetByField = (fieldName) => new Set((mapaProdutos || [])
@@ -239,22 +261,13 @@ export const api = {
     const normalizedAgrupamentos = normalizeMasterRows((agrupamentosRaw || [])
       .filter(row => agrupamentoIdsPermitidos.has(String(resolveMasterId(row)).trim())));
 
-    const agrupamentosFromDictionary = [...new Set((dicionario || [])
-      .map(item => item?.agrupamento_cod)
-      .filter(Boolean)
-      .map(value => String(value).trim())
-      .filter(value => !isNullLike(value)))]
-      .map(id => {
-        const existing = normalizedAgrupamentos.find(item => String(item.id) === id);
-        if (existing) return existing;
-        return null;
-      });
-
     return {
       origens: normalizedOrigens,
       familias: normalizedFamilias,
-      agrupamentos: agrupamentosFromDictionary.filter(Boolean),
+      agrupamentos: normalizedAgrupamentos,
       dicionario: dicionario || [],
+      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(mapaProdutos, dicionario)),
+      diagnostico_sem_mapa: await runDiagnosticoSemMapa(),
       error: null
     };
   },
@@ -363,17 +376,16 @@ export const api = {
     };
   },
 
-
   async upsertDicionarioProdutos(payload) {
     const sanitized = (payload || []).map(normalizeDictionaryPayloadItem);
-
     const invalid = sanitized.filter(item => !item.origem_id || !item.familia_id);
+
     if (invalid.length) {
       return {
         data: null,
         error: {
           code: 'VALIDATION_400',
-          message: `Erro 400: origem_id e familia_id são obrigatórios antes do upsert no dicionário (${invalid.length} item(ns) inválido(s)).`
+          message: `Erro 400: origem_id e familia_id (UUID) são obrigatórios antes do upsert no dicionário (${invalid.length} item(ns) inválido(s)).`
         }
       };
     }
@@ -386,14 +398,7 @@ export const api = {
   },
 
   async getHistorico(filters) {
-    const relationalResult = await getHistoricoWithRelations(filters);
-    if (!relationalResult.error) return relationalResult;
-
-    if (isRelationshipCacheError(relationalResult.error)) {
-      return getHistoricoWithClientFallback(filters);
-    }
-
-    return relationalResult;
+    return getHistoricoWithClientFallback(filters);
   },
 
   async getTrendsByProduct(codigoProduto) {
