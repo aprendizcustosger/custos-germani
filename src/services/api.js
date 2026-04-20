@@ -157,44 +157,45 @@ async function getHistoricoWithClientFallback(filters) {
   if (!historicoBase?.length) return { data: [], error: null };
 
   const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
-  const [{ data: dicionarioRows, error: dicionarioError }, { data: mapaRows, error: mapaError }] = await Promise.all([
-    sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod').in('codigo_produto', codigos),
-    sb.from(TABLES.mapa).select('codigo_produto, agrupamento_cod').in('codigo_produto', codigos)
+  const [{ data: dicionarioRows, error: dicionarioError }] = await Promise.all([
+    sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod').in('codigo_produto', codigos)
   ]);
 
   if (dicionarioError) return { data: null, error: dicionarioError };
-  if (mapaError) return { data: null, error: mapaError };
 
   const dicionarioByCodigo = new Map((dicionarioRows || []).map(row => [String(row.codigo_produto), row]));
-  const agrupamentoByCodigo = new Map((mapaRows || []).map(row => [String(row.codigo_produto), row?.agrupamento_cod || null]));
 
   const enrichedRows = historicoBase.map(item => {
     const dictionaryEntry = dicionarioByCodigo.get(String(item.codigo_produto));
-    const agrupamento = dictionaryEntry?.agrupamento_cod ?? agrupamentoByCodigo.get(String(item.codigo_produto)) ?? null;
     return {
       ...item,
       descricao: dictionaryEntry?.descricao || item.descricao || null,
       origem_id: dictionaryEntry?.origem_id || null,
       familia_id: dictionaryEntry?.familia_id || null,
-      agrupamento_cod: agrupamento
+      agrupamento_cod: dictionaryEntry?.agrupamento_cod ?? null
     };
   });
 
   return { data: applyCascadeFilterInMemory(enrichedRows, filters), error: null };
 }
 
-async function runDiagnosticoSemMapa() {
+async function runDiagnosticoSemAgrupamento() {
   const query = `
-    SELECT dp.codigo_produto
-    FROM dicionario_produtos dp
-    LEFT JOIN mapa_produtos mp
-      ON dp.codigo_produto = mp.codigo_produto
-    WHERE mp.codigo_produto IS NULL;
+    SELECT h.codigo_produto
+    FROM historico_custos h
+    JOIN dicionario_produtos dp
+      ON dp.codigo_produto = h.codigo_produto
+    LEFT JOIN categorias_agrupamento ca
+      ON ca.id::text = dp.agrupamento_cod
+    WHERE dp.agrupamento_cod IS NULL
+       OR ca.id IS NULL
+    GROUP BY h.codigo_produto
+    ORDER BY h.codigo_produto;
   `;
 
   const { data, error } = await sb.rpc('run_sql', { query });
   if (error) {
-    console.warn('Diagnóstico de mapa_produtos indisponível (RPC run_sql não encontrada).', error?.message || error);
+    console.warn('Diagnóstico de agrupamento indisponível (RPC run_sql não encontrada).', error?.message || error);
     return [];
   }
 
@@ -202,6 +203,64 @@ async function runDiagnosticoSemMapa() {
 }
 
 export const api = {
+  async getMasters() {
+    const [
+      { data: historicoRows, error: historicoError },
+      { data: origensRaw, error: origensError },
+      { data: familiasRaw, error: familiasError },
+      { data: agrupamentosRaw, error: agrupamentosError },
+      { data: dicionarioRaw, error: dicionarioError }
+    ] = await Promise.all([
+      sb.from(TABLES.historico).select('codigo_produto'),
+      sb.from(TABLES.origem).select('*').order('descricao'),
+      sb.from(TABLES.familia).select('*').order('descricao'),
+      sb.from(TABLES.agrupamento).select('*').order('descricao'),
+      sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod')
+    ]);
+
+    const error = historicoError || origensError || familiasError || agrupamentosError || dicionarioError;
+    if (error) {
+      return { origens: [], familias: [], agrupamentos: [], dicionario: [], hierarquia: [], diagnostico_sem_mapa: [], error };
+    }
+
+    const codigosComCusto = new Set((historicoRows || [])
+      .map(item => item?.codigo_produto)
+      .filter(value => !isNullLike(value))
+      .map(value => String(value).trim()));
+
+    const dicionarioComAgrupamento = (dicionarioRaw || [])
+      .filter(item => codigosComCusto.has(String(item?.codigo_produto || '').trim()));
+
+    const idsPermitidos = (fieldName) => new Set(dicionarioComAgrupamento
+      .map(item => item?.[fieldName])
+      .filter(value => !isNullLike(value))
+      .map(value => String(value).trim()));
+
+    const origemIdsPermitidos = idsPermitidos('origem_id');
+    const familiaIdsPermitidos = idsPermitidos('familia_id');
+    const agrupamentoIdsPermitidos = idsPermitidos('agrupamento_cod');
+
+    const normalizedOrigens = normalizeMasterRows((origensRaw || [])
+      .filter(row => origemIdsPermitidos.has(String(resolveMasterId(row)).trim())));
+    const normalizedFamilias = normalizeMasterRows((familiasRaw || [])
+      .filter(row => familiaIdsPermitidos.has(String(resolveMasterId(row)).trim())));
+    const normalizedAgrupamentos = normalizeMasterRows((agrupamentosRaw || [])
+      .filter(row => agrupamentoIdsPermitidos.has(String(resolveMasterId(row)).trim())));
+
+    return {
+      origens: normalizedOrigens,
+      familias: normalizedFamilias,
+      agrupamentos: normalizedAgrupamentos,
+      dicionario: dicionarioComAgrupamento,
+      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(dicionarioComAgrupamento)),
+      diagnostico_sem_mapa: await runDiagnosticoSemAgrupamento(),
+      error: null
+    };
+  },
+
+  async upsertHistoricoCustos(payload) {
+    return sb.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto,data_referencia' });
+  },
   async signIn(login, password) {
     const email = resolveLoginToEmail(login);
     return sb.auth.signInWithPassword({ email, password });
@@ -227,75 +286,6 @@ export const api = {
     return sb.auth.getUser();
   },
 
-  async getMasters() {
-    const [
-      { data: historicoRows, error: historicoError },
-      { data: origensRaw, error: origensError },
-      { data: familiasRaw, error: familiasError },
-      { data: agrupamentosRaw, error: agrupamentosError },
-      { data: dicionarioRaw, error: dicionarioError },
-      { data: mapaProdutos, error: mapaProdutosError }
-    ] = await Promise.all([
-      sb.from(TABLES.historico).select('codigo_produto'),
-      sb.from(TABLES.origem).select('*').order('descricao'),
-      sb.from(TABLES.familia).select('*').order('descricao'),
-      sb.from(TABLES.agrupamento).select('*').order('descricao'),
-      sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod'),
-      sb.from(TABLES.mapa).select('codigo_produto, agrupamento_cod')
-    ]);
-
-    const error = historicoError || origensError || familiasError || agrupamentosError || dicionarioError || mapaProdutosError;
-    if (error) {
-      return { origens: [], familias: [], agrupamentos: [], dicionario: [], hierarquia: [], diagnostico_sem_mapa: [], error };
-    }
-
-    const codigosComCusto = new Set((historicoRows || [])
-      .map(item => item?.codigo_produto)
-      .filter(value => !isNullLike(value))
-      .map(value => String(value).trim()));
-
-    const dicionario = (dicionarioRaw || [])
-      .filter(item => codigosComCusto.has(String(item?.codigo_produto || '').trim()));
-
-    const agrupamentoByCodigo = new Map((mapaProdutos || [])
-      .filter(item => !isNullLike(item?.codigo_produto))
-      .map(item => [String(item.codigo_produto).trim(), item?.agrupamento_cod || null]));
-
-    const dicionarioComAgrupamento = dicionario.map(item => ({
-      ...item,
-      agrupamento_cod: item?.agrupamento_cod ?? agrupamentoByCodigo.get(String(item.codigo_produto).trim()) ?? null
-    }));
-
-    const idsPermitidos = (fieldName) => new Set(dicionarioComAgrupamento
-      .map(item => item?.[fieldName])
-      .filter(value => !isNullLike(value))
-      .map(value => String(value).trim()));
-
-    const origemIdsPermitidos = idsPermitidos('origem_id');
-    const familiaIdsPermitidos = idsPermitidos('familia_id');
-    const agrupamentoIdsPermitidos = idsPermitidos('agrupamento_cod');
-
-    const normalizedOrigens = normalizeMasterRows((origensRaw || [])
-      .filter(row => origemIdsPermitidos.has(String(resolveMasterId(row)).trim())));
-    const normalizedFamilias = normalizeMasterRows((familiasRaw || [])
-      .filter(row => familiaIdsPermitidos.has(String(resolveMasterId(row)).trim())));
-    const normalizedAgrupamentos = normalizeMasterRows((agrupamentosRaw || [])
-      .filter(row => agrupamentoIdsPermitidos.has(String(resolveMasterId(row)).trim())));
-
-    return {
-      origens: normalizedOrigens,
-      familias: normalizedFamilias,
-      agrupamentos: normalizedAgrupamentos,
-      dicionario: dicionarioComAgrupamento,
-      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(dicionarioComAgrupamento)),
-      diagnostico_sem_mapa: await runDiagnosticoSemMapa(),
-      error: null
-    };
-  },
-
-  async upsertHistoricoCustos(payload) {
-    return sb.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto,data_referencia' });
-  },
 
   async importarHistoricoCustosComLog(payload, options = {}) {
     const totalLinhas = Array.isArray(payload) ? payload.length : 0;

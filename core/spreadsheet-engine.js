@@ -1,8 +1,10 @@
 /* Responsabilidade: parsing e normalização de planilhas XLSX (Smart Scraper). */
 
-export const REQUIRED_FIELDS = ['produto', 'descricao', 'custo_variavel', 'custo_direto_fixo', 'custo_total'];
+export const REQUIRED_FIELDS = ['codigo_produto', 'descricao', 'custo_variavel', 'custo_direto_fixo', 'custo_total'];
 const ALLOWED_HEADER_MAP = {
-  produto: 'produto',
+  produto: 'codigo_produto',
+  codigoproduto: 'codigo_produto',
+  codigo: 'codigo_produto',
   descricao: 'descricao',
   descricaoproduto: 'descricao',
   custovariavel: 'custo_variavel',
@@ -83,7 +85,7 @@ export function scanHeaders(rows) {
   const normalizedHeaders = headers.map(h => ({ original: h, key: normalizeText(h).replace(/\s+/g, '') }));
   const allowedHeaders = normalizedHeaders.filter(h => ALLOWED_HEADER_MAP[h.key]);
 
-  const mapping = { produto: null, descricao: null, custo_variavel: null, custo_direto_fixo: null, custo_total: null };
+  const mapping = { codigo_produto: null, descricao: null, custo_variavel: null, custo_direto_fixo: null, custo_total: null };
   allowedHeaders.forEach(header => {
     const canonical = ALLOWED_HEADER_MAP[header.key];
     if (!mapping[canonical]) mapping[canonical] = header.original;
@@ -98,7 +100,7 @@ export function scanHeaders(rows) {
 
 export function mapRowsToPayload(rows, mapping, dataReferencia, userId) {
   return rows.map(row => ({
-    codigo_produto: normalizeCodigoProduto(row[mapping.produto]),
+    codigo_produto: normalizeCodigoProduto(row[mapping.codigo_produto]),
     descricao: String(row[mapping.descricao] || '').replace(/\s+/g, ' ').trim(),
     custo_total: parseCurrencyBRL(row[mapping.custo_total]),
     data_referencia: dataReferencia,

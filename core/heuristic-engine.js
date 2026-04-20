@@ -13,7 +13,6 @@ const GERMANI_RULES = [
   { id: 'M000', origem: 'MOAGEM', familiaLabel: 'MISTURAS GERAIS', termos: ['mistura', 'farinha'] }
 ];
 
-const PACK_REGEX = /(\d+\s?(g|kg)|cx)\b/i;
 
 export function normalizeProductCode(value) {
   const raw = String(value || '').trim().replace(',', '.');
@@ -54,15 +53,7 @@ function inferOrigem(normalizedDesc, codigoProduto) {
   return 'PENDENTE';
 }
 
-function inferAgrupamento(normalizedDesc, origemHint) {
-  const pack = normalizedDesc.match(PACK_REGEX)?.[0]?.toUpperCase()?.replace(/\s+/g, '') || 'PENDENTE';
-
-  if (origemHint === 'BISCOITOS' && normalizedDesc.includes('recheado') && pack !== 'PENDENTE') {
-    return `BISCOITOS RECHEADOS ${pack}`;
-  }
-
-  if (origemHint !== 'PENDENTE' && pack !== 'PENDENTE') return `${origemHint} ${pack}`;
-  if (origemHint !== 'PENDENTE') return origemHint;
+function inferAgrupamento() {
   return 'PENDENTE';
 }
 

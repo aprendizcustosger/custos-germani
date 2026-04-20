@@ -86,9 +86,12 @@ Fluxo real utilizado no sistema:
 1. **Upload da planilha** na aplicação.
 2. **Validação em `dicionario_master_produtos`** pelo `codigo_produto`.
 3. **Conversão obrigatória** de `origem_cod/familia_cod` para UUID em `categorias_origem`/`categorias_familia`.
-4. **Upsert em `dicionario_produtos`** com `descricao`, `origem_id`, `familia_id` e `agrupamento_cod` (quando existir em `mapa_produtos`).
+4. **Upsert em `dicionario_produtos`** com `descricao`, `origem_id`, `familia_id` e `agrupamento_cod` com prioridade:
+   - `dicionario_produtos.agrupamento_cod` (valor já conhecido);
+   - `dicionario_master_produtos.agrupamento_cod` (quando disponível);
+   - `NULL` (não bloqueia importação).
 5. **Inserção em `historico_custos`** somente para produtos válidos no dicionário mestre.
-6. **Consulta de filtros** baseada em produtos com custo real (join `historico_custos` + `dicionario_produtos`).
+6. **Consulta de filtros** baseada em produtos com custo real (join `historico_custos` + `dicionario_produtos` + `categorias_agrupamento`).
 
 ---
 

@@ -2,7 +2,10 @@
 -- Regras críticas:
 --   - Fonte única de categorização: dicionario_master_produtos.
 --   - familia/origem são obrigatórios; se não houver mapeamento válido, não grava histórico.
---   - agrupamento é opcional (NULL permitido), com tentativa de leitura em mapa_produtos.
+--   - agrupamento é opcional (NULL permitido), com prioridade:
+--       1) dicionario_produtos.agrupamento_cod
+--       2) dicionario_master_produtos.agrupamento_cod (quando existir)
+--       3) NULL (não bloqueia importação)
 create or replace function public.inserir_custo(
   p_codigo_produto text,
   p_descricao text,
@@ -21,6 +24,7 @@ declare
   v_descricao_master text;
   v_origem_cod text;
   v_familia_cod text;
+  v_agrupamento_master_cod text;
   v_origem_id uuid;
   v_familia_id uuid;
   v_agrupamento_cod text;
@@ -35,11 +39,13 @@ begin
   select
     dmp.descricao,
     dmp.origem_cod,
-    dmp.familia_cod
+    dmp.familia_cod,
+    dmp.agrupamento_cod
   into
     v_descricao_master,
     v_origem_cod,
-    v_familia_cod
+    v_familia_cod,
+    v_agrupamento_master_cod
   from public.dicionario_master_produtos dmp
   where dmp.codigo_produto = v_codigo_produto;
 
@@ -69,11 +75,15 @@ begin
     return;
   end if;
 
-  -- Etapa 3: agrupamento opcional (não bloqueante).
-  select mp.agrupamento_cod
+  -- Etapa 3: agrupamento opcional (não bloqueante), com prioridade no dicionário.
+  select dp.agrupamento_cod
   into v_agrupamento_cod
-  from public.mapa_produtos mp
-  where mp.codigo_produto = v_codigo_produto;
+  from public.dicionario_produtos dp
+  where dp.codigo_produto = v_codigo_produto;
+
+  if v_agrupamento_cod is null then
+    v_agrupamento_cod := v_agrupamento_master_cod;
+  end if;
 
   -- Etapa 4: atualiza dicionário auxiliar a partir do mestre.
   begin
