@@ -185,11 +185,16 @@ async function handleImport(file) {
 
   dom.dropZone.classList.add('processing');
   const rows = readWorkbook(await file.arrayBuffer());
-  let { headers, mapping } = scanHeaders(rows);
+  const { headers, mapping: detectedMapping } = scanHeaders(rows);
+  const mapping = await confirmColumnMapping(headers, detectedMapping);
+  if (!mapping) {
+    dom.dropZone.classList.remove('processing');
+    return;
+  }
 
   if (countValidMappedColumns(mapping) < REQUIRED_FIELDS.length) {
     dom.dropZone.classList.remove('processing');
-    showToast('error', 'A planilha deve conter os 5 campos obrigatórios: codigo_produto, descricao, custo_variavel, custo_direto_fixo e custo_total.');
+    showToast('error', 'Todos os 5 campos obrigatórios devem ser mapeados antes do envio.');
     return;
   }
 
@@ -256,6 +261,86 @@ async function confirmImport(totalProdutos, totalColunasValidas, familySummary =
     cancelButtonText: 'Cancelar'
   });
   return result.isConfirmed;
+}
+
+function getFieldLabel(field) {
+  const labels = {
+    codigo_produto: 'Produto',
+    descricao: 'Descrição',
+    custo_variavel: 'Custo Variável',
+    custo_direto_fixo: 'Custo Direto Fixo',
+    custo_total: 'Custo Total'
+  };
+  return labels[field] || field;
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function buildMappingSelect(field, headers = []) {
+  const options = headers
+    .map(header => `<option value="${escapeHtml(header)}">${escapeHtml(header)}</option>`)
+    .join('');
+
+  return `
+    <div style="text-align:left; margin-bottom: 10px;">
+      <label for="map_${field}" style="display:block; font-weight:600; margin-bottom:4px;">
+        ${getFieldLabel(field)}
+      </label>
+      <select id="map_${field}" class="swal2-select" style="width:100%; margin:0;">
+        <option value="">Selecione uma coluna</option>
+        ${options}
+      </select>
+    </div>
+  `;
+}
+
+async function confirmColumnMapping(headers, detectedMapping) {
+  if (!headers.length) {
+    showToast('error', 'Nenhum cabeçalho foi encontrado na planilha.');
+    return null;
+  }
+
+  const html = REQUIRED_FIELDS.map(field => buildMappingSelect(field, headers)).join('');
+  const result = await Swal.fire({
+    icon: 'info',
+    title: 'Confirmar mapeamento de colunas',
+    html,
+    confirmButtonText: 'Confirmar mapeamento',
+    showCancelButton: true,
+    cancelButtonText: 'Cancelar',
+    focusConfirm: false,
+    didOpen: () => {
+      REQUIRED_FIELDS.forEach(field => {
+        const select = document.getElementById(`map_${field}`);
+        if (select && detectedMapping[field]) {
+          select.value = detectedMapping[field];
+        }
+      });
+    },
+    preConfirm: () => {
+      const mapping = REQUIRED_FIELDS.reduce((acc, field) => {
+        const select = document.getElementById(`map_${field}`);
+        acc[field] = select?.value || null;
+        return acc;
+      }, {});
+
+      const missingFields = REQUIRED_FIELDS.filter(field => !mapping[field]);
+      if (missingFields.length) {
+        Swal.showValidationMessage(`Preencha todos os campos: ${missingFields.map(getFieldLabel).join(', ')}.`);
+        return false;
+      }
+      return mapping;
+    }
+  });
+
+  return result.isConfirmed ? result.value : null;
 }
 
 async function runReport(options = {}) {
