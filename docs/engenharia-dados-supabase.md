@@ -38,6 +38,17 @@ Tabela **auxiliar** que armazena produtos e pode receber categorização derivad
 | `familia_id` | UUID (FK) | Pode ser preenchido a partir de `mapa_produtos.familia_id`. |
 | `agrupamento_cod` | Text | Pode ser preenchido a partir de `mapa_produtos.agrupamento_cod`. |
 
+
+### 3.1) `dicionario_master_produtos`
+Tabela **fonte única de verdade** para categorização automática de produtos durante importação.
+
+| Coluna | Tipo | Descrição |
+| :--- | :--- | :--- |
+| `codigo_produto` | Text (PK) | Código identificador único do produto. |
+| `descricao` | Text | Descrição oficial do produto. |
+| `familia_cod` | Text | Código de negócio da família (convertido para UUID em runtime). |
+| `origem_cod` | Text | Código de negócio da origem (convertido para UUID em runtime). |
+
 ### 4) `historico_custos` (Tabela de Fatos)
 Armazena os dados importados das planilhas semanais.
 
@@ -50,14 +61,14 @@ Armazena os dados importados das planilhas semanais.
 | `data_referencia` | Date | Data escolhida no calendário da aplicação. |
 | `criado_em` | Timestamp | Registro automático da data/hora do upload. |
 
-### 5) `mapa_produtos` (Tabela de Mapeamento)
-Fonte **única de verdade** da categorização.
+### 5) `mapa_produtos` (Tabela de apoio para agrupamento)
+Tabela auxiliar para manter `agrupamento_cod` e legados operacionais.
 
-Responsável por ligar:
+Responsável por ligar (quando disponível):
 
-`produto → origem → familia → agrupamento`
+`produto → agrupamento`
 
-Sem `mapa_produtos`, os produtos ficam sem categorização confiável para auditoria.
+A categorização obrigatória de origem/família vem de `dicionario_master_produtos` + tabelas de categorias.
 
 | Coluna | Tipo | Descrição |
 | :--- | :--- | :--- |
@@ -73,10 +84,11 @@ Sem `mapa_produtos`, os produtos ficam sem categorização confiável para audit
 Fluxo real utilizado no sistema:
 
 1. **Upload da planilha** na aplicação.
-2. **Inserção em `historico_custos`** com `codigo_produto`, descrição, custo e data de referência.
-3. **Registro em `dicionario_produtos`** para catálogo auxiliar de produtos.
-4. **Categorização via `mapa_produtos`** (fonte oficial da hierarquia).
-5. **Consulta via JOIN para auditoria**, sempre priorizando `mapa_produtos` + tabelas de categoria.
+2. **Validação em `dicionario_master_produtos`** pelo `codigo_produto`.
+3. **Conversão obrigatória** de `origem_cod/familia_cod` para UUID em `categorias_origem`/`categorias_familia`.
+4. **Upsert em `dicionario_produtos`** com `descricao`, `origem_id`, `familia_id` e `agrupamento_cod` (quando existir em `mapa_produtos`).
+5. **Inserção em `historico_custos`** somente para produtos válidos no dicionário mestre.
+6. **Consulta de filtros** baseada em produtos com custo real (join `historico_custos` + `dicionario_produtos`).
 
 ---
 
@@ -163,7 +175,27 @@ ORDER BY h.data_referencia ASC;
 ## ✅ Resumo de Garantias do Modelo
 
 - Histórico temporal consistente por produto/data.
-- Categorização oficial centralizada em `mapa_produtos`.
+- Categorização obrigatória centralizada em `dicionario_master_produtos` (com conversão para UUID).
 - `dicionario_produtos` com papel auxiliar e derivado.
 - Integridade por FKs com UUID e prevenção de erros de tipo.
 - Boa performance para consultas de auditoria.
+
+
+
+## 🧪 Query-base dos filtros (somente dados reais)
+
+Os filtros devem listar apenas categorias/produtos efetivamente importados em `historico_custos`.
+
+```sql
+SELECT DISTINCT
+  co.descricao AS origem
+FROM historico_custos h
+JOIN dicionario_produtos d ON h.codigo_produto = d.codigo_produto
+JOIN categorias_origem co ON d.origem_id = co.id
+WHERE d.origem_id IS NOT NULL;
+```
+
+Regras:
+- não mostrar categorias sem dados;
+- não mostrar produto só existente no dicionário mestre;
+- não mostrar `NULL`/`undefined`.
