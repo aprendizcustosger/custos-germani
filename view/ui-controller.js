@@ -188,12 +188,9 @@ async function handleImport(file) {
   let { headers, mapping } = scanHeaders(rows);
 
   if (countValidMappedColumns(mapping) < REQUIRED_FIELDS.length) {
-    const manualMap = await requestManualMapping(headers, mapping);
-    if (!manualMap) {
-      dom.dropZone.classList.remove('processing');
-      return;
-    }
-    mapping = manualMap;
+    dom.dropZone.classList.remove('processing');
+    showToast('error', 'A planilha deve conter os 5 campos obrigatórios: codigo_produto, descricao, custo_variavel, custo_direto_fixo e custo_total.');
+    return;
   }
 
   const payload = mapRowsToPayload(rows, mapping, refDate, state.user?.id || null);
@@ -238,31 +235,6 @@ async function handleImport(file) {
       </div>
     `
   });
-}
-
-async function requestManualMapping(headers, current) {
-  const options = headers.map(h => `<option value="${h}">${h}</option>`).join('');
-  const result = await Swal.fire({
-    title: 'Mapeamento manual de colunas',
-    html: `
-      <p style="margin-bottom:8px;">Não detectamos todas as colunas vitais automaticamente.</p>
-      ${REQUIRED_FIELDS.map(field => `
-        <label style="display:block;text-align:left;margin:6px 0 4px;">${field}</label>
-        <select id="map_${field}" class="swal2-input" style="margin:0 0 8px;">${options}</select>
-      `).join('')}
-    `,
-    focusConfirm: false,
-    preConfirm: () => ({
-      codigo_produto: document.getElementById('map_codigo_produto').value,
-      descricao: document.getElementById('map_descricao').value,
-      custo_variavel: document.getElementById('map_custo_variavel').value,
-      custo_direto_fixo: document.getElementById('map_custo_direto_fixo').value,
-      custo_total: document.getElementById('map_custo_total').value
-    })
-  });
-
-  if (!result.isConfirmed) return null;
-  return { ...current, ...result.value };
 }
 
 async function confirmImport(totalProdutos, totalColunasValidas, familySummary = {}) {
