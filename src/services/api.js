@@ -79,6 +79,8 @@ function validateHistoricoRow(row = {}) {
   const erros = [];
 
   if (!String(row?.codigo_produto || '').trim()) erros.push('codigo_produto vazio');
+  if (!String(row?.descricao || '').trim()) erros.push('descricao vazia');
+  if (!String(row?.custo_total ?? '').trim()) erros.push('custo_total vazio');
   const custo = Number(row?.custo_total);
   if (!Number.isFinite(custo)) erros.push('custo_total inválido');
   if (!isValidDateValue(row?.data_referencia)) erros.push('data_referencia inválida');
