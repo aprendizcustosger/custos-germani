@@ -253,7 +253,7 @@ async function requestManualMapping(headers, current) {
     `,
     focusConfirm: false,
     preConfirm: () => ({
-      produto: document.getElementById('map_produto').value,
+      codigo_produto: document.getElementById('map_codigo_produto').value,
       descricao: document.getElementById('map_descricao').value,
       custo_variavel: document.getElementById('map_custo_variavel').value,
       custo_direto_fixo: document.getElementById('map_custo_direto_fixo').value,
