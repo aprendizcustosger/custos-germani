@@ -21,6 +21,13 @@ Ignore qualquer outra coluna (ex.: `CIF`, `Derivação`, `Data de Cadastro`).
 Se a planilha tiver 100 colunas extras, o sistema deve ignorar o “lixo” e capturar apenas as 5 colunas acima.  
 **Nunca retornar erro por “coluna inválida” quando as colunas obrigatórias forem encontradas.**
 
+### Regra mandatória de importação automática
+Para cada linha importada:
+1. Ler `codigo_produto`, `descricao`, `custo_total`, `data_referencia`;
+2. Consultar `dicionario_produtos` por `codigo_produto`;
+3. Rejeitar a linha se não houver `origem_id` e `familia_id` válidos;
+4. Fazer `UPSERT` em `historico_custos` com `UNIQUE (codigo_produto, data_referencia)` e `ON CONFLICT` atualizando apenas `custo_total`.
+
 ---
 
 ## 🧬 2. Hierarquia de Categorização (Cascata)
@@ -60,8 +67,8 @@ O sistema de auditoria é baseado em uma estrutura hierárquica em cascata, perm
   - selecionar uma **Origem** restringe as **Famílias** disponíveis;
   - selecionar uma **Família** restringe os **Agrupamentos**;
   - e assim sucessivamente até **Produto**.
-- **Fonte única de categorização**: os dados exibidos devem sempre respeitar `mapa_produtos`.
-- **Produtos sem categorização**: permanecem visíveis com valores `NULL`, sem quebrar a auditoria.
+- **Fonte da auditoria**: os dados exibidos devem usar `historico_custos` + `dicionario_produtos` (com joins nas tabelas de categorias).
+- **Produtos sem categorização no dicionário**: não devem ser importados para o histórico.
 - **Análise parcial permitida**: o usuário pode filtrar apenas por **Origem** (ou até qualquer nível intermediário) sem obrigatoriedade de preencher todos os níveis.
 
 #### Objetivo operacional

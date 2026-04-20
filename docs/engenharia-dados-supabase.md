@@ -27,9 +27,9 @@ Segundo nível da hierarquia.
 | `descricao` | Text | Nome da Família (ex.: Farinhas, Massas Ovos, Recheados). |
 
 ### 3) `dicionario_produtos`
-Tabela **auxiliar** que armazena produtos e pode receber categorização derivada de `mapa_produtos`.
+Tabela de referência operacional para importação automática.
 
-> **Importante:** `dicionario_produtos` **não é** a fonte principal de categorização.
+> **Importante:** a importação de custos só é aceita para produtos já presentes em `dicionario_produtos` com `origem_id` e `familia_id` válidos.
 
 | Coluna | Tipo | Descrição |
 | :--- | :--- | :--- |
@@ -73,10 +73,10 @@ Sem `mapa_produtos`, os produtos ficam sem categorização confiável para audit
 Fluxo real utilizado no sistema:
 
 1. **Upload da planilha** na aplicação.
-2. **Inserção em `historico_custos`** com `codigo_produto`, descrição, custo e data de referência.
-3. **Registro em `dicionario_produtos`** para catálogo auxiliar de produtos.
-4. **Categorização via `mapa_produtos`** (fonte oficial da hierarquia).
-5. **Consulta via JOIN para auditoria**, sempre priorizando `mapa_produtos` + tabelas de categoria.
+2. **Validação linha a linha em `dicionario_produtos`** por `codigo_produto`.
+3. **Rejeição da linha** quando `origem_id` ou `familia_id` estiver ausente.
+4. **UPSERT em `historico_custos`** com `ON CONFLICT (codigo_produto, data_referencia) DO UPDATE SET custo_total = EXCLUDED.custo_total`.
+5. **Consulta via JOIN para auditoria** usando `historico_custos` + `dicionario_produtos` + tabelas de categoria.
 
 ---
 
@@ -144,16 +144,16 @@ SELECT
   h.descricao,
   h.custo_total,
   h.data_referencia,
-  mp.agrupamento_cod,
+  dp.agrupamento_cod,
   co.descricao AS origem,
   cf.descricao AS familia
 FROM historico_custos h
-LEFT JOIN mapa_produtos mp
-  ON h.codigo_produto = mp.codigo_produto
-LEFT JOIN categorias_origem co
-  ON mp.origem_id = co.id
-LEFT JOIN categorias_familia cf
-  ON mp.familia_id = cf.id
+JOIN dicionario_produtos dp
+  ON h.codigo_produto = dp.codigo_produto
+JOIN categorias_origem co
+  ON dp.origem_id = co.id
+JOIN categorias_familia cf
+  ON dp.familia_id = cf.id
 WHERE h.data_referencia BETWEEN '2026-03-01' AND '2026-03-31'
 ORDER BY h.data_referencia ASC;
 ```

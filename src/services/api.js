@@ -68,10 +68,10 @@ function normalizeDictionaryPayloadItem(item) {
 
 function applyCascadeFilterInMemory(rows, filters) {
   return (rows || []).filter(item => {
-    const mapa = item.mapa_produtos;
-    if (filters.origem !== 'TODAS' && String(mapa?.origem_id) !== String(filters.origem)) return false;
-    if (filters.familia !== 'TODAS' && String(mapa?.familia_id) !== String(filters.familia)) return false;
-    if (filters.agrupamento !== 'TODOS' && String(mapa?.agrupamento_cod) !== String(filters.agrupamento)) return false;
+    const categoriaRef = item.dicionario_produtos || item.mapa_produtos;
+    if (filters.origem !== 'TODAS' && String(categoriaRef?.origem_id) !== String(filters.origem)) return false;
+    if (filters.familia !== 'TODAS' && String(categoriaRef?.familia_id) !== String(filters.familia)) return false;
+    if (filters.agrupamento !== 'TODOS' && String(categoriaRef?.agrupamento_cod) !== String(filters.agrupamento)) return false;
     if (filters.item !== 'TODOS' && String(item.codigo_produto) !== String(filters.item)) return false;
     return true;
   });
@@ -139,13 +139,12 @@ function sanitizeHierarchyRows(rows = []) {
 }
 
 async function getHistoricoWithClientFallback(filters) {
-  const baseQuery = sb
+  const selectBase = 'codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp, dicionario_produtos!inner(codigo_produto, descricao, origem_id, familia_id, agrupamento_cod)';
+  const withDescricao = await sb
     .from(TABLES.historico)
+    .select(selectBase)
     .gte('data_referencia', filters.start)
-    .lte('data_referencia', filters.end);
-
-  const withDescricao = await baseQuery
-    .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp')
+    .lte('data_referencia', filters.end)
     .order('data_referencia', { ascending: true });
 
   let historicoBase = withDescricao.data;
@@ -154,7 +153,7 @@ async function getHistoricoWithClientFallback(filters) {
   if (historicoError && isMissingColumnError(historicoError, 'descricao')) {
     const withoutDescricao = await sb
       .from(TABLES.historico)
-      .select('codigo_produto, custo_total, data_referencia, user_id, operacao_timestamp')
+      .select('codigo_produto, custo_total, data_referencia, user_id, operacao_timestamp, dicionario_produtos!inner(codigo_produto, descricao, origem_id, familia_id, agrupamento_cod)')
       .gte('data_referencia', filters.start)
       .lte('data_referencia', filters.end)
       .order('data_referencia', { ascending: true });
@@ -164,27 +163,7 @@ async function getHistoricoWithClientFallback(filters) {
   }
 
   if (historicoError) return { data: null, error: historicoError };
-  if (!historicoBase?.length) return { data: [], error: null };
-
-  const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
-  const [{ data: dicionarioRows, error: dicionarioError }, { data: mapaRows, error: mapaError }] = await Promise.all([
-    sb.from(TABLES.dicionario).select('codigo_produto, descricao').in('codigo_produto', codigos),
-    sb.from(TABLES.mapa).select('codigo_produto, origem_id, familia_id, agrupamento_cod').in('codigo_produto', codigos)
-  ]);
-
-  if (dicionarioError) return { data: null, error: dicionarioError };
-  if (mapaError) return { data: null, error: mapaError };
-
-  const dicionarioByCodigo = new Map((dicionarioRows || []).map(row => [String(row.codigo_produto), row]));
-  const mapaByCodigo = new Map((mapaRows || []).map(row => [String(row.codigo_produto), row]));
-
-  const enrichedRows = historicoBase.map(item => ({
-    ...item,
-    descricao: item.descricao || dicionarioByCodigo.get(String(item.codigo_produto))?.descricao || null,
-    mapa_produtos: mapaByCodigo.get(String(item.codigo_produto)) || null
-  }));
-
-  return { data: applyCascadeFilterInMemory(enrichedRows, filters), error: null };
+  return { data: applyCascadeFilterInMemory(historicoBase || [], filters), error: null };
 }
 
 async function runDiagnosticoSemMapa() {
@@ -232,27 +211,26 @@ export const api = {
   },
 
   async getMasters() {
-    const [{ data: mapaProdutos, error: mapaProdutosError }, { data: origensRaw, error: origensError }, { data: familiasRaw, error: familiasError }, { data: agrupamentosRaw, error: agrupamentosError }, { data: dicionario, error: dicionarioError }] = await Promise.all([
-      sb.from(TABLES.mapa).select('codigo_produto, origem_id, familia_id, agrupamento_cod'),
+    const [{ data: dicionario, error: dicionarioError }, { data: origensRaw, error: origensError }, { data: familiasRaw, error: familiasError }, { data: agrupamentosRaw, error: agrupamentosError }] = await Promise.all([
+      sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod'),
       sb.from(TABLES.origem).select('*').order('descricao'),
       sb.from(TABLES.familia).select('*').order('descricao'),
-      sb.from(TABLES.agrupamento).select('*').order('descricao'),
-      sb.from(TABLES.dicionario).select('codigo_produto, descricao')
+      sb.from(TABLES.agrupamento).select('*').order('descricao')
     ]);
 
-    const error = mapaProdutosError || origensError || familiasError || agrupamentosError || dicionarioError;
+    const error = origensError || familiasError || agrupamentosError || dicionarioError;
     if (error) {
       return { origens: [], familias: [], agrupamentos: [], dicionario: [], hierarquia: [], diagnostico_sem_mapa: [], error };
     }
 
-    const mapaSetByField = (fieldName) => new Set((mapaProdutos || [])
+    const dicionarioSetByField = (fieldName) => new Set((dicionario || [])
       .map(item => item?.[fieldName])
       .filter(value => !isNullLike(value))
       .map(value => String(value).trim()));
 
-    const origemIdsPermitidos = mapaSetByField('origem_id');
-    const familiaIdsPermitidos = mapaSetByField('familia_id');
-    const agrupamentoIdsPermitidos = mapaSetByField('agrupamento_cod');
+    const origemIdsPermitidos = dicionarioSetByField('origem_id');
+    const familiaIdsPermitidos = dicionarioSetByField('familia_id');
+    const agrupamentoIdsPermitidos = dicionarioSetByField('agrupamento_cod');
 
     const normalizedOrigens = normalizeMasterRows((origensRaw || [])
       .filter(row => origemIdsPermitidos.has(String(resolveMasterId(row)).trim())));
@@ -266,7 +244,7 @@ export const api = {
       familias: normalizedFamilias,
       agrupamentos: normalizedAgrupamentos,
       dicionario: dicionario || [],
-      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(mapaProdutos, dicionario)),
+      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(dicionario, dicionario)),
       diagnostico_sem_mapa: await runDiagnosticoSemMapa(),
       error: null
     };
