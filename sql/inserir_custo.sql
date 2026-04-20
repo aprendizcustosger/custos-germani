@@ -1,11 +1,8 @@
--- Função: insere/atualiza custos aplicando categorização automática via dicionário mestre.
+-- Função: insere/atualiza custos usando exclusivamente dicionario_produtos.
 -- Regras críticas:
---   - Fonte única de categorização: dicionario_master_produtos.
---   - familia/origem são obrigatórios; se não houver mapeamento válido, não grava histórico.
---   - agrupamento é opcional (NULL permitido), com prioridade:
---       1) dicionario_produtos.agrupamento_cod
---       2) dicionario_master_produtos.agrupamento_cod (quando existir)
---       3) NULL (não bloqueia importação)
+--   - Não inferir por descrição.
+--   - Produto deve existir no dicionario_produtos com origem_id/familia_id/agrupamento_cod preenchidos.
+--   - historico_custos usa UNIQUE (codigo_produto, data_referencia) com upsert de custo_total.
 create or replace function public.inserir_custo(
   p_codigo_produto text,
   p_descricao text,
@@ -20,11 +17,7 @@ language plpgsql
 as $$
 declare
   v_codigo_produto text := nullif(btrim(coalesce(p_codigo_produto, '')), '');
-  v_descricao_planilha text := nullif(btrim(coalesce(p_descricao, '')), '');
-  v_descricao_master text;
-  v_origem_cod text;
-  v_familia_cod text;
-  v_agrupamento_master_cod text;
+  v_descricao text := nullif(btrim(coalesce(p_descricao, '')), '');
   v_origem_id uuid;
   v_familia_id uuid;
   v_agrupamento_cod text;
@@ -35,102 +28,40 @@ begin
     return;
   end if;
 
-  -- Etapa 1: busca obrigatória no dicionário mestre.
   select
-    dmp.descricao,
-    dmp.origem_cod,
-    dmp.familia_cod,
-    dmp.agrupamento_cod
+    dp.origem_id,
+    dp.familia_id,
+    dp.agrupamento_cod
   into
-    v_descricao_master,
-    v_origem_cod,
-    v_familia_cod,
-    v_agrupamento_master_cod
-  from public.dicionario_master_produtos dmp
-  where dmp.codigo_produto = v_codigo_produto;
-
-  if v_descricao_master is null or v_origem_cod is null or v_familia_cod is null then
-    return query
-    select false, format('Produto %s não encontrado no dicionario_master_produtos.', v_codigo_produto);
-    return;
-  end if;
-
-  -- Etapa 2: converte códigos de negócio para UUID (obrigatório).
-  select co.id into v_origem_id
-  from public.categorias_origem co
-  where co.codigo = v_origem_cod;
-
-  select cf.id into v_familia_id
-  from public.categorias_familia cf
-  where cf.codigo = v_familia_cod;
-
-  if v_origem_id is null or v_familia_id is null then
-    return query
-    select false, format(
-      'Conversão de categoria inválida para %s (origem_cod=%s, familia_cod=%s).',
-      v_codigo_produto,
-      coalesce(v_origem_cod, 'NULL'),
-      coalesce(v_familia_cod, 'NULL')
-    );
-    return;
-  end if;
-
-  -- Etapa 3: agrupamento opcional (não bloqueante), com prioridade no dicionário.
-  select dp.agrupamento_cod
-  into v_agrupamento_cod
+    v_origem_id,
+    v_familia_id,
+    v_agrupamento_cod
   from public.dicionario_produtos dp
   where dp.codigo_produto = v_codigo_produto;
 
-  if v_agrupamento_cod is null then
-    v_agrupamento_cod := v_agrupamento_master_cod;
+  if v_origem_id is null or v_familia_id is null or v_agrupamento_cod is null then
+    return query
+      select false, format('Produto %s sem mapeamento completo em dicionario_produtos.', v_codigo_produto);
+    return;
   end if;
 
-  -- Etapa 4: atualiza dicionário auxiliar a partir do mestre.
-  begin
-    insert into public.dicionario_produtos (
-      codigo_produto,
-      descricao,
-      origem_id,
-      familia_id,
-      agrupamento_cod
-    )
-    values (
-      v_codigo_produto,
-      v_descricao_master,
-      v_origem_id,
-      v_familia_id,
-      v_agrupamento_cod
-    )
-    on conflict (codigo_produto) do update
-       set descricao = excluded.descricao,
-           origem_id = excluded.origem_id,
-           familia_id = excluded.familia_id,
-           agrupamento_cod = excluded.agrupamento_cod;
-  exception
-    when others then
-      get stacked diagnostics v_erro = message_text;
-      return query select false, concat('Falha ao atualizar dicionario_produtos: ', v_erro);
-      return;
-  end;
-
-  -- Etapa 5: grava histórico de custos.
   begin
     insert into public.historico_custos (
       codigo_produto,
-      descricao_na_planilha,
+      descricao,
       custo_total,
       data_referencia
     )
     values (
       v_codigo_produto,
-      coalesce(v_descricao_planilha, v_descricao_master),
+      v_descricao,
       p_custo_total,
       p_data_referencia
     )
     on conflict (codigo_produto, data_referencia)
-    do update
-       set custo_total = excluded.custo_total,
-           descricao_na_planilha = excluded.descricao_na_planilha;
+    do update set
+      custo_total = excluded.custo_total,
+      descricao = excluded.descricao;
   exception
     when others then
       get stacked diagnostics v_erro = message_text;
@@ -139,6 +70,6 @@ begin
   end;
 
   return query
-  select true, 'Registro inserido/atualizado com sucesso.'::text;
+    select true, 'Registro inserido/atualizado com sucesso.'::text;
 end;
 $$;

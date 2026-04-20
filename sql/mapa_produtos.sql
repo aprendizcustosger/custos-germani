@@ -47,8 +47,8 @@ convertida as (
   join public.categorias_familia cf
     on cf.codigo = n.familia_cod
   left join public.categorias_agrupamento ca
-    on ca.id::text = n.agrupamento_cod
-  where n.agrupamento_cod is null or ca.id is not null
+    on ca.codigo = n.agrupamento_cod
+  where n.agrupamento_cod is null or ca.codigo is not null
 )
 insert into public.mapa_produtos (
   codigo_produto,

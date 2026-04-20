@@ -1,6 +1,5 @@
 /* Responsabilidade: camada única de acesso ao Supabase (Auth + leitura + escrita). */
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { suggestCategory as heuristicSuggestCategory } from '../../core/heuristic-engine.js';
 
 const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
@@ -11,8 +10,7 @@ const TABLES = {
   dicionario: 'dicionario_produtos',
   origem: 'categorias_origem',
   familia: 'categorias_familia',
-  agrupamento: 'categorias_agrupamento',
-  mapa: 'mapa_produtos'
+  agrupamento: 'categorias_agrupamento'
 };
 
 export const MASTER_ADMIN = {
@@ -57,15 +55,6 @@ function isMissingColumnError(error, columnName) {
   return message.includes(`column ${TABLES.historico}.${String(columnName).toLowerCase()} does not exist`);
 }
 
-function normalizeDictionaryPayloadItem(item) {
-  return {
-    codigo_produto: item.codigo_produto,
-    origem_id: isNullLike(item?.origem_id) ? null : item.origem_id,
-    familia_id: isNullLike(item?.familia_id) ? null : item.familia_id,
-    agrupamento_cod: item.agrupamento_cod || null
-  };
-}
-
 function applyCascadeFilterInMemory(rows, filters) {
   return (rows || []).filter(item => {
     if (filters.origem !== 'TODAS' && String(item?.origem_id) !== String(filters.origem)) return false;
@@ -89,23 +78,12 @@ function isValidDateValue(value) {
 function validateHistoricoRow(row = {}) {
   const erros = [];
 
-  if (!String(row?.codigo_produto || '').trim()) {
-    erros.push('codigo_produto vazio');
-  }
-
+  if (!String(row?.codigo_produto || '').trim()) erros.push('codigo_produto vazio');
   const custo = Number(row?.custo_total);
-  if (!Number.isFinite(custo)) {
-    erros.push('custo_total inválido');
-  }
+  if (!Number.isFinite(custo)) erros.push('custo_total inválido');
+  if (!isValidDateValue(row?.data_referencia)) erros.push('data_referencia inválida');
 
-  if (!isValidDateValue(row?.data_referencia)) {
-    erros.push('data_referencia inválida');
-  }
-
-  return {
-    valido: erros.length === 0,
-    erros
-  };
+  return { valido: erros.length === 0, erros };
 }
 
 function mapHierarchyRows(dicionario = []) {
@@ -125,6 +103,7 @@ function sanitizeHierarchyRows(rows = []) {
     !isNullLike(item?.codigo_produto)
     && !isNullLike(item?.origem_id)
     && !isNullLike(item?.familia_id)
+    && !isNullLike(item?.agrupamento_cod)
   );
 }
 
@@ -157,24 +136,31 @@ async function getHistoricoWithClientFallback(filters) {
   if (!historicoBase?.length) return { data: [], error: null };
 
   const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
-  const [{ data: dicionarioRows, error: dicionarioError }] = await Promise.all([
-    sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod').in('codigo_produto', codigos)
-  ]);
+  const { data: dicionarioRows, error: dicionarioError } = await sb
+    .from(TABLES.dicionario)
+    .select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod')
+    .in('codigo_produto', codigos)
+    .not('origem_id', 'is', null)
+    .not('familia_id', 'is', null)
+    .not('agrupamento_cod', 'is', null);
 
   if (dicionarioError) return { data: null, error: dicionarioError };
 
   const dicionarioByCodigo = new Map((dicionarioRows || []).map(row => [String(row.codigo_produto), row]));
 
-  const enrichedRows = historicoBase.map(item => {
-    const dictionaryEntry = dicionarioByCodigo.get(String(item.codigo_produto));
-    return {
-      ...item,
-      descricao: dictionaryEntry?.descricao || item.descricao || null,
-      origem_id: dictionaryEntry?.origem_id || null,
-      familia_id: dictionaryEntry?.familia_id || null,
-      agrupamento_cod: dictionaryEntry?.agrupamento_cod ?? null
-    };
-  });
+  const enrichedRows = historicoBase
+    .map(item => {
+      const dictionaryEntry = dicionarioByCodigo.get(String(item.codigo_produto));
+      if (!dictionaryEntry) return null;
+      return {
+        ...item,
+        descricao: dictionaryEntry.descricao || item.descricao || null,
+        origem_id: dictionaryEntry.origem_id,
+        familia_id: dictionaryEntry.familia_id,
+        agrupamento_cod: dictionaryEntry.agrupamento_cod
+      };
+    })
+    .filter(Boolean);
 
   return { data: applyCascadeFilterInMemory(enrichedRows, filters), error: null };
 }
@@ -186,9 +172,9 @@ async function runDiagnosticoSemAgrupamento() {
     JOIN dicionario_produtos dp
       ON dp.codigo_produto = h.codigo_produto
     LEFT JOIN categorias_agrupamento ca
-      ON ca.id::text = dp.agrupamento_cod
+      ON ca.codigo = dp.agrupamento_cod
     WHERE dp.agrupamento_cod IS NULL
-       OR ca.id IS NULL
+       OR ca.codigo IS NULL
     GROUP BY h.codigo_produto
     ORDER BY h.codigo_produto;
   `;
@@ -215,7 +201,11 @@ export const api = {
       sb.from(TABLES.origem).select('*').order('descricao'),
       sb.from(TABLES.familia).select('*').order('descricao'),
       sb.from(TABLES.agrupamento).select('*').order('descricao'),
-      sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod')
+      sb.from(TABLES.dicionario)
+        .select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod')
+        .not('origem_id', 'is', null)
+        .not('familia_id', 'is', null)
+        .not('agrupamento_cod', 'is', null)
     ]);
 
     const error = historicoError || origensError || familiasError || agrupamentosError || dicionarioError;
@@ -228,10 +218,10 @@ export const api = {
       .filter(value => !isNullLike(value))
       .map(value => String(value).trim()));
 
-    const dicionarioComAgrupamento = (dicionarioRaw || [])
+    const dicionarioComCusto = (dicionarioRaw || [])
       .filter(item => codigosComCusto.has(String(item?.codigo_produto || '').trim()));
 
-    const idsPermitidos = (fieldName) => new Set(dicionarioComAgrupamento
+    const idsPermitidos = (fieldName) => new Set(dicionarioComCusto
       .map(item => item?.[fieldName])
       .filter(value => !isNullLike(value))
       .map(value => String(value).trim()));
@@ -244,15 +234,17 @@ export const api = {
       .filter(row => origemIdsPermitidos.has(String(resolveMasterId(row)).trim())));
     const normalizedFamilias = normalizeMasterRows((familiasRaw || [])
       .filter(row => familiaIdsPermitidos.has(String(resolveMasterId(row)).trim())));
-    const normalizedAgrupamentos = normalizeMasterRows((agrupamentosRaw || [])
-      .filter(row => agrupamentoIdsPermitidos.has(String(resolveMasterId(row)).trim())));
+    const agrupamentosNormalizados = normalizeMasterRows((agrupamentosRaw || []).map(row => ({
+      ...row,
+      id: row?.codigo ?? resolveMasterId(row)
+    })).filter(row => agrupamentoIdsPermitidos.has(String(row?.id || '').trim())));
 
     return {
       origens: normalizedOrigens,
       familias: normalizedFamilias,
-      agrupamentos: normalizedAgrupamentos,
-      dicionario: dicionarioComAgrupamento,
-      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(dicionarioComAgrupamento)),
+      agrupamentos: agrupamentosNormalizados,
+      dicionario: dicionarioComCusto,
+      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(dicionarioComCusto)),
       diagnostico_sem_mapa: await runDiagnosticoSemAgrupamento(),
       error: null
     };
@@ -261,6 +253,7 @@ export const api = {
   async upsertHistoricoCustos(payload) {
     return sb.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto,data_referencia' });
   },
+
   async signIn(login, password) {
     const email = resolveLoginToEmail(login);
     return sb.auth.signInWithPassword({ email, password });
@@ -285,7 +278,6 @@ export const api = {
   async getCurrentUser() {
     return sb.auth.getUser();
   },
-
 
   async importarHistoricoCustosComLog(payload, options = {}) {
     const totalLinhas = Array.isArray(payload) ? payload.length : 0;
@@ -312,46 +304,62 @@ export const api = {
     let linhasErro = 0;
     const erros = [];
 
-    for (const [index, row] of (payload || []).entries()) {
+    const rows = Array.isArray(payload) ? payload : [];
+    const codigos = [...new Set(rows.map(row => String(row?.codigo_produto || '').trim()).filter(Boolean))];
+
+    const { data: dicionarioRows, error: dicionarioError } = await sb
+      .from(TABLES.dicionario)
+      .select('codigo_produto, origem_id, familia_id, agrupamento_cod')
+      .in('codigo_produto', codigos);
+
+    if (dicionarioError) {
+      return { data: null, error: dicionarioError };
+    }
+
+    const dicionarioByCodigo = new Map((dicionarioRows || []).map(item => [String(item.codigo_produto).trim(), item]));
+
+    const payloadValido = [];
+    rows.forEach((row, index) => {
       const validacao = validateHistoricoRow(row);
       if (!validacao.valido) {
         linhasErro += 1;
-        erros.push({
-          linha: index + 1,
-          tipo: 'validacao',
-          mensagem: validacao.erros.join('; '),
-          row
-        });
-        continue;
+        erros.push({ linha: index + 1, tipo: 'validacao', mensagem: validacao.erros.join('; '), row });
+        return;
       }
 
-      const payloadCusto = {
-        p_codigo_produto: String(row.codigo_produto || '').trim(),
-        p_descricao: row.descricao ?? null,
-        p_custo_total: Number(row.custo_total),
-        p_data_referencia: row.data_referencia
-      };
-
-      // inserir_custo executa a validação/categorização automática via dicionario_master_produtos.
-      const { data: rpcData, error } = await sb.rpc('inserir_custo', payloadCusto);
-
-      const rpcResult = Array.isArray(rpcData) ? rpcData[0] : null;
-      const rpcFailed = error || rpcResult?.sucesso === false;
-
-      if (rpcFailed) {
-        const erroDetalhado = error?.message || rpcResult?.mensagem || 'erro ao inserir linha';
-        console.error('Erro ao importar linha via inserir_custo:', { linha: index + 1, erro: erroDetalhado, row });
+      const codigo = String(row.codigo_produto || '').trim();
+      const dict = dicionarioByCodigo.get(codigo);
+      if (!dict || isNullLike(dict.origem_id) || isNullLike(dict.familia_id) || isNullLike(dict.agrupamento_cod)) {
         linhasErro += 1;
         erros.push({
           linha: index + 1,
-          tipo: 'banco',
-          mensagem: erroDetalhado,
+          tipo: 'dicionario',
+          mensagem: `Produto ${codigo} sem mapeamento completo em dicionario_produtos.`,
           row
         });
-        continue;
+        return;
       }
 
-      linhasImportadas += 1;
+      payloadValido.push({
+        codigo_produto: codigo,
+        descricao: row.descricao ?? null,
+        custo_total: Number(row.custo_total),
+        data_referencia: row.data_referencia,
+        user_id: row.user_id ?? null,
+        operacao_timestamp: row.operacao_timestamp ?? new Date().toISOString()
+      });
+    });
+
+    if (payloadValido.length > 0) {
+      const { error: upsertError } = await sb
+        .from(TABLES.historico)
+        .upsert(payloadValido, { onConflict: 'codigo_produto,data_referencia' });
+
+      if (upsertError) {
+        return { data: null, error: upsertError };
+      }
+
+      linhasImportadas = payloadValido.length;
     }
 
     const resumo = {
@@ -368,10 +376,7 @@ export const api = {
 
     let updateLogError = null;
     if (logId) {
-      const { error } = await sb
-        .from(TABLES.logImportacao)
-        .update(fechamentoLog)
-        .eq('id', logId);
+      const { error } = await sb.from(TABLES.logImportacao).update(fechamentoLog).eq('id', logId);
       updateLogError = error;
     }
 
@@ -386,25 +391,29 @@ export const api = {
     };
   },
 
-  async upsertDicionarioProdutos(payload) {
-    const sanitized = (payload || []).map(normalizeDictionaryPayloadItem);
-    const invalid = sanitized.filter(item => !item.origem_id || !item.familia_id);
-
-    if (invalid.length) {
-      return {
-        data: null,
-        error: {
-          code: 'VALIDATION_400',
-          message: `Erro 400: origem_id e familia_id (UUID) são obrigatórios antes do upsert no dicionário (${invalid.length} item(ns) inválido(s)).`
-        }
-      };
+  async suggestCategory(product, masters) {
+    const codigo = String(product?.codigo_produto || '').trim();
+    if (!codigo) {
+      return { data: { origem_id: null, familia_id: null, agrupamento_cod: null, status: 'PENDENTE' }, error: null };
     }
 
-    return sb.from(TABLES.dicionario).upsert(sanitized, { onConflict: 'codigo_produto' });
-  },
+    const { data, error } = await sb
+      .from(TABLES.dicionario)
+      .select('origem_id, familia_id, agrupamento_cod')
+      .eq('codigo_produto', codigo)
+      .maybeSingle();
 
-  async suggestCategory(product, masters) {
-    return { data: heuristicSuggestCategory(product, masters), error: null };
+    if (error) return { data: null, error };
+
+    return {
+      data: {
+        origem_id: data?.origem_id || null,
+        familia_id: data?.familia_id || null,
+        agrupamento_cod: data?.agrupamento_cod || null,
+        status: data?.origem_id && data?.familia_id && data?.agrupamento_cod ? 'SUGERIDO' : 'PENDENTE'
+      },
+      error: null
+    };
   },
 
   async getHistorico(filters) {
