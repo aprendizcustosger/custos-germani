@@ -68,10 +68,9 @@ function normalizeDictionaryPayloadItem(item) {
 
 function applyCascadeFilterInMemory(rows, filters) {
   return (rows || []).filter(item => {
-    const mapa = item.mapa_produtos;
-    if (filters.origem !== 'TODAS' && String(mapa?.origem_id) !== String(filters.origem)) return false;
-    if (filters.familia !== 'TODAS' && String(mapa?.familia_id) !== String(filters.familia)) return false;
-    if (filters.agrupamento !== 'TODOS' && String(mapa?.agrupamento_cod) !== String(filters.agrupamento)) return false;
+    if (filters.origem !== 'TODAS' && String(item?.origem_id) !== String(filters.origem)) return false;
+    if (filters.familia !== 'TODAS' && String(item?.familia_id) !== String(filters.familia)) return false;
+    if (filters.agrupamento !== 'TODOS' && String(item?.agrupamento_cod) !== String(filters.agrupamento)) return false;
     if (filters.item !== 'TODOS' && String(item.codigo_produto) !== String(filters.item)) return false;
     return true;
   });
@@ -109,24 +108,16 @@ function validateHistoricoRow(row = {}) {
   };
 }
 
-function mapHierarchyRows(mapaProdutos = [], dicionario = []) {
-  const dicionarioByCodigo = new Map((dicionario || [])
+function mapHierarchyRows(dicionario = []) {
+  return (dicionario || [])
     .filter(item => !isNullLike(item?.codigo_produto))
-    .map(item => [String(item.codigo_produto).trim(), item]));
-
-  return (mapaProdutos || [])
-    .filter(item => !isNullLike(item?.codigo_produto))
-    .map(item => {
-      const codigoProduto = String(item.codigo_produto).trim();
-      const dict = dicionarioByCodigo.get(codigoProduto);
-      return {
-        codigo_produto: codigoProduto,
-        origem_id: item?.origem_id ?? null,
-        familia_id: item?.familia_id ?? null,
-        agrupamento_cod: item?.agrupamento_cod ?? null,
-        descricao: dict?.descricao || null
-      };
-    });
+    .map(item => ({
+      codigo_produto: String(item.codigo_produto).trim(),
+      origem_id: item?.origem_id ?? null,
+      familia_id: item?.familia_id ?? null,
+      agrupamento_cod: item?.agrupamento_cod ?? null,
+      descricao: item?.descricao || null
+    }));
 }
 
 function sanitizeHierarchyRows(rows = []) {
@@ -134,7 +125,6 @@ function sanitizeHierarchyRows(rows = []) {
     !isNullLike(item?.codigo_produto)
     && !isNullLike(item?.origem_id)
     && !isNullLike(item?.familia_id)
-    && !isNullLike(item?.agrupamento_cod)
   );
 }
 
@@ -168,21 +158,27 @@ async function getHistoricoWithClientFallback(filters) {
 
   const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
   const [{ data: dicionarioRows, error: dicionarioError }, { data: mapaRows, error: mapaError }] = await Promise.all([
-    sb.from(TABLES.dicionario).select('codigo_produto, descricao').in('codigo_produto', codigos),
-    sb.from(TABLES.mapa).select('codigo_produto, origem_id, familia_id, agrupamento_cod').in('codigo_produto', codigos)
+    sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod').in('codigo_produto', codigos),
+    sb.from(TABLES.mapa).select('codigo_produto, agrupamento_cod').in('codigo_produto', codigos)
   ]);
 
   if (dicionarioError) return { data: null, error: dicionarioError };
   if (mapaError) return { data: null, error: mapaError };
 
   const dicionarioByCodigo = new Map((dicionarioRows || []).map(row => [String(row.codigo_produto), row]));
-  const mapaByCodigo = new Map((mapaRows || []).map(row => [String(row.codigo_produto), row]));
+  const agrupamentoByCodigo = new Map((mapaRows || []).map(row => [String(row.codigo_produto), row?.agrupamento_cod || null]));
 
-  const enrichedRows = historicoBase.map(item => ({
-    ...item,
-    descricao: item.descricao || dicionarioByCodigo.get(String(item.codigo_produto))?.descricao || null,
-    mapa_produtos: mapaByCodigo.get(String(item.codigo_produto)) || null
-  }));
+  const enrichedRows = historicoBase.map(item => {
+    const dictionaryEntry = dicionarioByCodigo.get(String(item.codigo_produto));
+    const agrupamento = dictionaryEntry?.agrupamento_cod ?? agrupamentoByCodigo.get(String(item.codigo_produto)) ?? null;
+    return {
+      ...item,
+      descricao: dictionaryEntry?.descricao || item.descricao || null,
+      origem_id: dictionaryEntry?.origem_id || null,
+      familia_id: dictionaryEntry?.familia_id || null,
+      agrupamento_cod: agrupamento
+    };
+  });
 
   return { data: applyCascadeFilterInMemory(enrichedRows, filters), error: null };
 }
@@ -232,27 +228,52 @@ export const api = {
   },
 
   async getMasters() {
-    const [{ data: mapaProdutos, error: mapaProdutosError }, { data: origensRaw, error: origensError }, { data: familiasRaw, error: familiasError }, { data: agrupamentosRaw, error: agrupamentosError }, { data: dicionario, error: dicionarioError }] = await Promise.all([
-      sb.from(TABLES.mapa).select('codigo_produto, origem_id, familia_id, agrupamento_cod'),
+    const [
+      { data: historicoRows, error: historicoError },
+      { data: origensRaw, error: origensError },
+      { data: familiasRaw, error: familiasError },
+      { data: agrupamentosRaw, error: agrupamentosError },
+      { data: dicionarioRaw, error: dicionarioError },
+      { data: mapaProdutos, error: mapaProdutosError }
+    ] = await Promise.all([
+      sb.from(TABLES.historico).select('codigo_produto'),
       sb.from(TABLES.origem).select('*').order('descricao'),
       sb.from(TABLES.familia).select('*').order('descricao'),
       sb.from(TABLES.agrupamento).select('*').order('descricao'),
-      sb.from(TABLES.dicionario).select('codigo_produto, descricao')
+      sb.from(TABLES.dicionario).select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod'),
+      sb.from(TABLES.mapa).select('codigo_produto, agrupamento_cod')
     ]);
 
-    const error = mapaProdutosError || origensError || familiasError || agrupamentosError || dicionarioError;
+    const error = historicoError || origensError || familiasError || agrupamentosError || dicionarioError || mapaProdutosError;
     if (error) {
       return { origens: [], familias: [], agrupamentos: [], dicionario: [], hierarquia: [], diagnostico_sem_mapa: [], error };
     }
 
-    const mapaSetByField = (fieldName) => new Set((mapaProdutos || [])
+    const codigosComCusto = new Set((historicoRows || [])
+      .map(item => item?.codigo_produto)
+      .filter(value => !isNullLike(value))
+      .map(value => String(value).trim()));
+
+    const dicionario = (dicionarioRaw || [])
+      .filter(item => codigosComCusto.has(String(item?.codigo_produto || '').trim()));
+
+    const agrupamentoByCodigo = new Map((mapaProdutos || [])
+      .filter(item => !isNullLike(item?.codigo_produto))
+      .map(item => [String(item.codigo_produto).trim(), item?.agrupamento_cod || null]));
+
+    const dicionarioComAgrupamento = dicionario.map(item => ({
+      ...item,
+      agrupamento_cod: item?.agrupamento_cod ?? agrupamentoByCodigo.get(String(item.codigo_produto).trim()) ?? null
+    }));
+
+    const idsPermitidos = (fieldName) => new Set(dicionarioComAgrupamento
       .map(item => item?.[fieldName])
       .filter(value => !isNullLike(value))
       .map(value => String(value).trim()));
 
-    const origemIdsPermitidos = mapaSetByField('origem_id');
-    const familiaIdsPermitidos = mapaSetByField('familia_id');
-    const agrupamentoIdsPermitidos = mapaSetByField('agrupamento_cod');
+    const origemIdsPermitidos = idsPermitidos('origem_id');
+    const familiaIdsPermitidos = idsPermitidos('familia_id');
+    const agrupamentoIdsPermitidos = idsPermitidos('agrupamento_cod');
 
     const normalizedOrigens = normalizeMasterRows((origensRaw || [])
       .filter(row => origemIdsPermitidos.has(String(resolveMasterId(row)).trim())));
@@ -265,8 +286,8 @@ export const api = {
       origens: normalizedOrigens,
       familias: normalizedFamilias,
       agrupamentos: normalizedAgrupamentos,
-      dicionario: dicionario || [],
-      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(mapaProdutos, dicionario)),
+      dicionario: dicionarioComAgrupamento,
+      hierarquia: sanitizeHierarchyRows(mapHierarchyRows(dicionarioComAgrupamento)),
       diagnostico_sem_mapa: await runDiagnosticoSemMapa(),
       error: null
     };
@@ -321,8 +342,7 @@ export const api = {
         p_data_referencia: row.data_referencia
       };
 
-      // Importante: inserir_custo recebe somente dados de custo.
-      // Qualquer categorização (origem/família/agrupamento) é tratada em fluxo separado.
+      // inserir_custo executa a validação/categorização automática via dicionario_master_produtos.
       const { data: rpcData, error } = await sb.rpc('inserir_custo', payloadCusto);
 
       const rpcResult = Array.isArray(rpcData) ? rpcData[0] : null;
