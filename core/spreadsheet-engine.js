@@ -197,16 +197,71 @@ export function scanHeaders(rows) {
 }
 
 export function mapRowsToPayload(rows, mapping, dataReferencia, userId) {
+  if (!mapping || typeof mapping !== 'object') {
+    console.error('Importação abortada: objeto de mapeamento inválido.', mapping);
+    return [];
+  }
+
+  const requiredColumns = {
+    codigo_produto: mapping.codigo_produto,
+    descricao: mapping.descricao,
+    custo_total: mapping.custo_total
+  };
+
+  const missingMappings = Object.entries(requiredColumns)
+    .filter(([, columnName]) => !String(columnName || '').trim())
+    .map(([field]) => field);
+
+  if (missingMappings.length > 0) {
+    console.error('Importação abortada: mapeamento incompleto para campos obrigatórios.', {
+      missingMappings,
+      mapping
+    });
+    return [];
+  }
+
   return rows
-    .map(row => ({
-      codigo_produto: normalizeCodigoProduto(row[mapping.codigo_produto]),
-      descricao: String(row[mapping.descricao] || '').replace(/\s+/g, ' ').trim(),
-      custo_total: parseCurrencyBRL(row[mapping.custo_total]),
-      data_referencia: dataReferencia,
-      user_id: userId,
-      operacao_timestamp: new Date().toISOString()
-    }))
-    .filter(item => item.codigo_produto.length > 0);
+    .map((row, index) => {
+      const produto = row[mapping.codigo_produto];
+      const descricao = row[mapping.descricao];
+      const custoTotal = row[mapping.custo_total];
+
+      console.log('ROW ORIGINAL:', row);
+      console.log('MAPPING:', mapping);
+      console.log('VALORES EXTRAÍDOS:', {
+        produto,
+        descricao,
+        custoTotal
+      });
+
+      const codigoProdutoNormalizado = normalizeCodigoProduto(produto);
+      const descricaoNormalizada = String(descricao || '').replace(/\s+/g, ' ').trim();
+      const custoTotalNormalizado = parseCurrencyBRL(custoTotal);
+      const custoTotalInformado = String(custoTotal ?? '').trim().length > 0;
+
+      const camposInvalidos = [];
+      if (!codigoProdutoNormalizado) camposInvalidos.push('codigo_produto');
+      if (!descricaoNormalizada) camposInvalidos.push('descricao');
+      if (!custoTotalInformado) camposInvalidos.push('custo_total');
+
+      if (camposInvalidos.length > 0) {
+        console.error(`Linha ${index + 1} ignorada: campos obrigatórios ausentes (${camposInvalidos.join(', ')}).`, {
+          row,
+          mapping
+        });
+        return null;
+      }
+
+      return {
+        codigo_produto: codigoProdutoNormalizado,
+        descricao: descricaoNormalizada,
+        custo_total: custoTotalNormalizado,
+        data_referencia: dataReferencia,
+        user_id: userId,
+        operacao_timestamp: new Date().toISOString()
+      };
+    })
+    .filter(Boolean);
 }
 
 export function countValidMappedColumns(mapping) {

@@ -7,7 +7,8 @@ const state = {
   user: null,
   masters: { origens: [], familias: [], agrupamentos: [], dicionario: [], hierarquia: [] },
   chart: null,
-  trendChart: null
+  trendChart: null,
+  importMapping: null
 };
 
 const dom = {
@@ -191,6 +192,7 @@ async function handleImport(file) {
     dom.dropZone.classList.remove('processing');
     return;
   }
+  state.importMapping = { ...mapping };
 
   if (countValidMappedColumns(mapping) < REQUIRED_FIELDS.length) {
     dom.dropZone.classList.remove('processing');
@@ -198,7 +200,7 @@ async function handleImport(file) {
     return;
   }
 
-  const payload = mapRowsToPayload(rows, mapping, refDate, state.user?.id || null);
+  const payload = mapRowsToPayload(rows, state.importMapping, refDate, state.user?.id || null);
   const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping));
   if (!confirmed) {
     dom.dropZone.classList.remove('processing');
