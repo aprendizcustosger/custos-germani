@@ -1,6 +1,13 @@
 /* Responsabilidade: parsing e normalização de planilhas XLSX (Smart Scraper). */
 
 export const REQUIRED_FIELDS = ['codigo_produto', 'descricao', 'custo_variavel', 'custo_direto_fixo', 'custo_total'];
+const FIELD_ALIASES = {
+  codigo_produto: ['produto', 'codigo', 'cod', 'item'],
+  descricao: ['descricao', 'descrição', 'desc'],
+  custo_variavel: ['custo variavel', 'custo var', 'variavel'],
+  custo_direto_fixo: ['fixo', 'direto fixo', 'custo fixo'],
+  custo_total: ['total', 'custo total']
+};
 
 export function normalizeText(value) {
   return String(value || '')
@@ -24,6 +31,107 @@ function findHeaderRowIndex(matrixRows) {
     const normalizedRow = row.map(cell => normalizeHeaderKey(cell));
     return REQUIRED_FIELDS.every(field => normalizedRow.includes(field));
   });
+}
+
+function tokenize(value) {
+  return normalizeText(value)
+    .split(/[^a-z0-9]+/g)
+    .map(token => token.trim())
+    .filter(Boolean);
+}
+
+function bigrams(value) {
+  const text = normalizeText(value).replace(/\s+/g, '');
+  if (!text) return new Set();
+  if (text.length === 1) return new Set([text]);
+  const result = new Set();
+  for (let i = 0; i < text.length - 1; i += 1) {
+    result.add(text.slice(i, i + 2));
+  }
+  return result;
+}
+
+function calculateDiceSimilarity(a, b) {
+  const setA = bigrams(a);
+  const setB = bigrams(b);
+  if (!setA.size || !setB.size) return 0;
+  let intersection = 0;
+  setA.forEach(chunk => {
+    if (setB.has(chunk)) intersection += 1;
+  });
+  return (2 * intersection) / (setA.size + setB.size);
+}
+
+function scoreHeaderMatch(header, aliases = []) {
+  const normalizedHeader = normalizeText(header);
+  const headerTokens = tokenize(header);
+  let bestScore = 0;
+
+  aliases.forEach(alias => {
+    const normalizedAlias = normalizeText(alias);
+    if (!normalizedAlias) return;
+
+    if (normalizedHeader === normalizedAlias) {
+      bestScore = Math.max(bestScore, 1);
+      return;
+    }
+    if (normalizedHeader.includes(normalizedAlias)) {
+      bestScore = Math.max(bestScore, 0.92);
+      return;
+    }
+
+    const aliasTokens = tokenize(alias);
+    const tokenOverlap = aliasTokens.length > 0
+      ? aliasTokens.filter(token => headerTokens.includes(token)).length / aliasTokens.length
+      : 0;
+    if (tokenOverlap > 0) {
+      bestScore = Math.max(bestScore, 0.65 + (tokenOverlap * 0.2));
+    }
+
+    const fuzzyScore = calculateDiceSimilarity(normalizedHeader, normalizedAlias);
+    if (fuzzyScore >= 0.72) {
+      bestScore = Math.max(bestScore, fuzzyScore * 0.85);
+    }
+  });
+
+  return bestScore;
+}
+
+function detectColumnMapping(headers = []) {
+  const normalizedHeaders = headers.map((header, index) => ({
+    index,
+    header,
+    normalized: normalizeHeaderKey(header)
+  }));
+  const mapping = Object.fromEntries(REQUIRED_FIELDS.map(field => [field, null]));
+  const usedHeaders = new Set();
+
+  REQUIRED_FIELDS.forEach(field => {
+    const exact = normalizedHeaders.find(item => item.normalized === field && !usedHeaders.has(item.header));
+    if (exact) {
+      mapping[field] = exact.header;
+      usedHeaders.add(exact.header);
+    }
+  });
+
+  REQUIRED_FIELDS.forEach(field => {
+    if (mapping[field]) return;
+    const aliases = FIELD_ALIASES[field] || [];
+    let best = { header: null, score: 0 };
+
+    headers.forEach(header => {
+      if (usedHeaders.has(header)) return;
+      const score = scoreHeaderMatch(header, aliases);
+      if (score > best.score) best = { header, score };
+    });
+
+    if (best.header && best.score >= 0.72) {
+      mapping[field] = best.header;
+      usedHeaders.add(best.header);
+    }
+  });
+
+  return mapping;
 }
 
 function normalizeCodigoProduto(value) {
@@ -79,20 +187,7 @@ export function readWorkbook(arrayBuffer) {
 
 export function scanHeaders(rows) {
   const headers = [...new Set((rows || []).flatMap(row => Object.keys(row || {})))];
-  const mapping = {
-    codigo_produto: null,
-    descricao: null,
-    custo_variavel: null,
-    custo_direto_fixo: null,
-    custo_total: null
-  };
-
-  headers.forEach(header => {
-    const normalized = normalizeHeaderKey(header);
-    if (Object.prototype.hasOwnProperty.call(mapping, normalized) && !mapping[normalized]) {
-      mapping[normalized] = header;
-    }
-  });
+  const mapping = detectColumnMapping(headers);
 
   return {
     headers,
