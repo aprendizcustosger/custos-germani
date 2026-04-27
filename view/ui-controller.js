@@ -200,7 +200,7 @@ async function handleImport(file) {
     return;
   }
 
-  const payload = mapRowsToPayload(rows, state.importMapping, refDate, state.user?.id || null);
+  const payload = mapRowsToPayload(rows, state.importMapping, refDate);
   const confirmed = await confirmImport(payload.length, countValidMappedColumns(mapping));
   if (!confirmed) {
     dom.dropZone.classList.remove('processing');
@@ -208,7 +208,6 @@ async function handleImport(file) {
   }
 
   const { data: resultadoImportacao, error } = await api.importarHistoricoCustosComLog(payload, {
-    userId: state.user?.id || null,
     dataReferencia: refDate
   });
   dom.dropZone.classList.remove('processing');

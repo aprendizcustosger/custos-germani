@@ -50,11 +50,6 @@ function resolveLoginToEmail(login) {
   return login === MASTER_ADMIN.username ? MASTER_ADMIN.email : login;
 }
 
-function isMissingColumnError(error, columnName) {
-  const message = String(error?.message || '').toLowerCase();
-  return message.includes(`column ${TABLES.historico}.${String(columnName).toLowerCase()} does not exist`);
-}
-
 function applyCascadeFilterInMemory(rows, filters) {
   return (rows || []).filter(item => {
     if (filters.origem !== 'TODAS' && String(item?.origem_id) !== String(filters.origem)) return false;
@@ -110,27 +105,12 @@ function sanitizeHierarchyRows(rows = []) {
 }
 
 async function getHistoricoWithClientFallback(filters) {
-  const withDescricao = await supabase
+  const { data: historicoBase, error: historicoError } = await supabase
     .from(TABLES.historico)
-    .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp')
+    .select('*')
     .gte('data_referencia', filters.start)
     .lte('data_referencia', filters.end)
     .order('data_referencia', { ascending: true });
-
-  let historicoBase = withDescricao.data;
-  let historicoError = withDescricao.error;
-
-  if (historicoError && isMissingColumnError(historicoError, 'descricao')) {
-    const withoutDescricao = await supabase
-      .from(TABLES.historico)
-      .select('codigo_produto, custo_total, data_referencia, user_id, operacao_timestamp')
-      .gte('data_referencia', filters.start)
-      .lte('data_referencia', filters.end)
-      .order('data_referencia', { ascending: true });
-
-    historicoBase = (withoutDescricao.data || []).map(item => ({ ...item, descricao: null }));
-    historicoError = withoutDescricao.error;
-  }
 
   if (historicoError) return { data: null, error: historicoError };
   if (!historicoBase?.length) return { data: [], error: null };
@@ -295,7 +275,6 @@ export const api = {
       linhas_erro: 0,
       iniciado_em: inicio,
       finalizado_em: null,
-      user_id: options.userId || null,
       data_referencia: options.dataReferencia || null
     };
 
@@ -351,7 +330,6 @@ export const api = {
         descricao: row.descricao ?? null,
         custo_total: Number(row.custo_total),
         data_referencia: row.data_referencia,
-        user_id: row.user_id ?? null,
         operacao_timestamp: row.operacao_timestamp ?? new Date().toISOString()
       });
     });
