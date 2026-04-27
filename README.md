@@ -1,137 +1,153 @@
-# README Técnico — Pipeline de Auditoria de Custos
+# Sistema de Auditoria de Custos Germani
 
-## 1) Importação (regras obrigatórias)
-A planilha de entrada deve conter os 5 campos obrigatórios:
+Documentação oficial do estado **atual** do projeto (frontend + Supabase).
 
-- `codigo_produto`
-- `descricao`
-- `custo_variavel`
-- `custo_direto_fixo`
-- `custo_total`
+## 1. Visão Geral
 
-Regras:
-- Ignorar quaisquer colunas extras.
-- Não falhar por colunas adicionais.
-- Não inferir categoria por texto.
+O sistema automatiza a auditoria de custos de produtos importados de planilhas (origem ERP/SAP) e permite análise por período com filtros em cascata.
 
-## 2) Normalização de valores
-Os valores monetários usam formato brasileiro e devem seguir:
+Fluxo operacional real:
+1. Usuário seleciona `data_referencia` e importa planilha `.xlsx`.
+2. O frontend valida/mapeia 5 colunas obrigatórias.
+3. Os dados são normalizados e enviados ao Supabase.
+4. O sistema garante existência do produto em `dicionario_produtos`.
+5. O histórico é gravado em `historico_custos`.
+6. A tela de auditoria consulta custos e aplica filtros dinâmicos (Origem → Família → Agrupamento → Produto).
 
-1. remover separador de milhar (`.`)
-2. substituir vírgula por ponto
-3. converter para número
-4. arredondar para 2 casas decimais
+---
 
-Exemplos:
-- `1.234,56` → `1234.56`
-- `10,3` → `10.30`
-- `10,3456` → `10.35`
+## 2. Arquitetura de Dados
 
-## 3) Dicionário master (fonte de verdade estrutural)
-Tabela: `dicionario_master_produtos`
+### `categorias_origem`
+- `id` (UUID): chave técnica.
+- `codigo` (TEXT): **chave de negócio**.
+- `descricao` (TEXT): rótulo exibido no frontend.
 
-Campos:
-- `codigo_produto`
-- `descricao`
-- `familia_cod`
-- `origem_cod`
+### `categorias_familia`
+- `id` (UUID): chave técnica.
+- `codigo` (TEXT): **chave de negócio**.
+- `descricao` (TEXT): rótulo exibido no frontend.
 
-Regra:
-- Contém todos os produtos para construção estrutural do dicionário.
-- Nunca inferir por descrição.
+### `dicionario_produtos`
+- `codigo_produto` (TEXT): chave do produto.
+- `origem_id` (UUID): referência técnica para categoria de origem.
+- `familia_id` (UUID): referência técnica para categoria de família.
+- `agrupamento_cod` (TEXT): código técnico/lógico de agrupamento.
+- `descricao` (TEXT): descrição de apoio do produto.
 
-## 4) Dicionário estruturado operacional
-Tabela: `dicionario_produtos`
+### `historico_custos`
+- `codigo_produto` (TEXT).
+- `custo_variavel` (NUMERIC 18,4).
+- `custo_direto_fixo` (NUMERIC 18,4).
+- `custo_total` (NUMERIC 18,4).
+- `data_referencia` (DATE).
+- `descricao` é mantida como snapshot textual do item importado.
 
-Campos:
-- `codigo_produto`
-- `descricao`
-- `origem_id` (UUID)
-- `familia_id` (UUID)
-- `agrupamento_cod` (TEXT)
+### Regras explícitas de identidade
+- Backend/persistência: lógica de relacionamento via **código de negócio** + FKs técnicas.
+- Frontend: exibe **descrição** (não expõe UUID como informação de negócio).
+- UUID (`id`) em categorias é apenas chave técnica de integração.
 
-Conversão obrigatória:
-- `familia_cod` → `categorias_familia.codigo` → `id` (UUID)
-- `origem_cod` → `categorias_origem.codigo` → `id` (UUID)
+---
 
-## 5) Agrupamento (regra crítica)
-Agrupamento é classificação técnica, não peso/embalagem.
+## 3. Categorização (Cascata)
 
-Exemplos:
-- `M003` → BISCOITO AMANTEIGADO
-- `M004` → BISCOITO APERITIVO
-- `M024` → MASSA COM OVOS
+Cascata funcional da UI e da auditoria:
 
-Origem dos códigos: `categorias_agrupamento`.
+**Origem → Família → Agrupamento → Produto**
 
-Regras:
-- não inferir por peso;
-- não usar regex de gramas/kg;
-- usar somente códigos existentes.
+Fonte real da hierarquia usada nos filtros:
+- `dicionario_produtos` (via `hierarquia`/`dicionario` carregados em `api.getMasters`).
 
-## 6) Processo de importação
-Para cada linha da planilha:
-1. ler `codigo_produto`
-2. garantir existência em `dicionario_produtos`:
-   - se já existir, seguir;
-   - se não existir, criar automaticamente com `descricao` da planilha e `origem_id/familia_id/agrupamento_cod = NULL`.
-3. inserir no histórico de custos.
+Papel das tabelas de categoria:
+- `categorias_origem` e `categorias_familia` enriquecem os códigos técnicos com `descricao` para exibição.
 
-Se houver falha ao criar no dicionário:
-- registrar log de erro;
-- continuar o processamento das demais linhas (não travar lote inteiro).
+Importante:
+- A lógica de cascata não depende de texto legado como “FAMILIA XXXX”.
+- A categorização opera com IDs/códigos persistidos no dicionário e labels das categorias.
 
-Destino: `historico_custos`.
+---
 
-## 7) Histórico de custos
-Tabela: `historico_custos`
+## 4. Importação de Dados
 
-Campos:
-- `codigo_produto`
-- `descricao`
-- `custo_total`
-- `data_referencia`
+### Colunas obrigatórias (5)
+A importação exige mapeamento dos campos:
+- `Produto` (`codigo_produto`)
+- `Descrição` (`descricao`)
+- `Custo Variável` (`custo_variavel`)
+- `Custo Direto Fixo` (`custo_direto_fixo`)
+- `Custo Total` (`custo_total`)
 
-Constraint obrigatória:
-- `UNIQUE (codigo_produto, data_referencia)`
+### Comportamento da ingestão
+- Colunas extras são aceitas e ignoradas.
+- O processamento não falha por colunas adicionais.
+- Cabeçalhos podem ser detectados por aliases e confirmação manual.
 
-Comportamento `ON CONFLICT`:
-- atualizar `custo_total`.
+### Parsing numérico
+- Remove separador de milhar quando necessário.
+- Converte vírgula decimal para ponto.
+- Arredonda/normaliza para até **4 casas decimais**.
+- Valores inválidos são tratados como inválidos e podem gerar rejeição da linha na validação final.
 
-## 8) Auditoria (filtros)
-Regra crítica:
-- filtros usam apenas dados reais (`historico_custos` + `dicionario_produtos`).
+### Robustez
+- Cada linha é validada.
+- Produto ausente no dicionário é criado automaticamente com categorização nula inicial.
+- Falhas por linha são registradas sem interromper todo o lote.
 
-Não usar:
-- `dicionario_master_produtos` diretamente na auditoria;
-- produtos sem custo.
+---
 
-## 9) Consulta padrão
-```sql
-SELECT
-  h.codigo_produto,
-  h.custo_total,
-  co.descricao AS origem,
-  cf.descricao AS familia,
-  ca.descricao AS agrupamento
-FROM historico_custos h
-JOIN dicionario_produtos d ON h.codigo_produto = d.codigo_produto
-JOIN categorias_origem co ON d.origem_id = co.id
-JOIN categorias_familia cf ON d.familia_id = cf.id
-LEFT JOIN categorias_agrupamento ca ON d.agrupamento_cod = ca.codigo;
-```
+## 5. Auditoria e Filtros
 
-## 10) Regras críticas (não violar)
-- Não salvar texto em UUID.
-- Não usar descrição para categorizar.
-- Permitir `NULL` temporário em origem/família/agrupamento para produtos novos recém-importados.
-- Não mostrar `null` nos filtros.
-- Não misturar dicionário estrutural com dados reais de custo.
+Origem real dos dados em tela:
 
-## Resultado esperado
-- importação automática;
-- criação automática de novos produtos no `dicionario_produtos`;
-- dados consistentes;
-- filtros limpos;
-- zero erro de tipo;
-- sistema robusto.
+- **Produto:** vem de produtos com custo em `historico_custos`.
+- **Origem/Família/Agrupamento:** vêm de combinações existentes em `dicionario_produtos` para produtos que já têm custo histórico.
+
+Características dos filtros:
+- Dinâmicos.
+- Em cascata.
+- Limitados a valores realmente existentes no conjunto com custo.
+- Opções `null`/`undefined` são removidas antes da renderização.
+
+---
+
+## 6. Princípios do Sistema
+
+1. Tolerância a dados imperfeitos na importação.
+2. Robustez: erro pontual não derruba lote inteiro.
+3. Consistência entre banco e UI por uso de dados reais com custo.
+4. Evitar opções vazias/nulas em filtros.
+5. Não usar descrição textual como chave de negócio.
+6. Não expor chaves técnicas como semântica de negócio no frontend.
+
+---
+
+## 7. Problemas já resolvidos
+
+- Uso incorreto de UUID como se fosse semântica de negócio.
+- Divergências entre colunas esperadas e schema real no Supabase.
+- Parsing numérico incorreto para formato brasileiro.
+- Filtros exibindo valores vazios (`null`/`undefined`).
+- Dependência de textos como “FAMILIA XXXX” em vez de classificação estruturada.
+
+---
+
+## 8. Boas Práticas Técnicas
+
+- Usar `codigo` como referência lógica de negócio em categorias.
+- Tratar `id` UUID como referência técnica.
+- Nunca depender de texto livre para lógica de categorização.
+- Manter sincronização entre:
+  - `dicionario_produtos` (hierarquia),
+  - `historico_custos` (fato de custo),
+  - categorias (descrições de exibição).
+
+---
+
+## Estrutura técnica do repositório
+
+- `view/ui-controller.js`: fluxo de UI, importação e auditoria.
+- `core/spreadsheet-engine.js`: leitura/mapeamento/normalização da planilha.
+- `core/report-engine.js`: cálculo da cascata e KPIs.
+- `src/services/api.js`: acesso Supabase e regras de gravação/consulta.
+- `docs/`: documentação detalhada por capítulo.

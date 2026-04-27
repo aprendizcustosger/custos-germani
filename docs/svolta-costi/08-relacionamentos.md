@@ -1,22 +1,14 @@
-# Capítulo 8 — Relacionamentos
+# Capítulo 8 — Relacionamentos e Cascata
 
-## 8.1 Integridade referencial
-Os relacionamentos garantem consistência dos filtros e da auditoria.
+## Cadeia de categorização
+**Origem → Família → Agrupamento → Produto**
 
-| Tabela Origem | Campo FK | Tabela Destino | Campo PK | ON DELETE |
-|---------------|----------|----------------|----------|-----------|
-| dicionario_produtos | origem_id | categorias_origem | id | RESTRICT |
-| dicionario_produtos | familia_id | categorias_familia | id | RESTRICT |
-| dicionario_produtos | agrupamento_cod | categorias_agrupamento | id | RESTRICT |
-| historico_custos | codigo_produto | dicionario_produtos | codigo_produto | RESTRICT |
+## Fonte da hierarquia
+- `dicionario_produtos` fornece `origem_id`, `familia_id`, `agrupamento_cod` por produto.
+- `categorias_origem` e `categorias_familia` enriquecem com descrição.
 
-## 8.2 Diagrama de dependências
-O diagrama resume a hierarquia de dados.
+## Fonte de custos
+- `historico_custos` contém apenas informações de custo por produto/data.
 
-```
-categorias_origem ----+
-                      |
-categorias_familia ---+--> dicionario_produtos --> historico_custos
-                      |
-categorias_agrupamento+
-```
+## Regra importante
+A lógica de negócio não depende de textos como `FAMILIA XXXX`; depende de códigos e referências estruturadas.
