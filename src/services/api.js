@@ -406,8 +406,7 @@ export const api = {
         custo_variavel: normalizeMoneyValue(rowNormalizada.custo_variavel),
         custo_direto_fixo: normalizeMoneyValue(rowNormalizada.custo_direto_fixo),
         custo_total: custoTotal,
-        data_referencia: dataReferencia,
-        operacao_timestamp: row.operacao_timestamp ?? new Date().toISOString()
+        data_referencia: dataReferencia
       });
     }
 

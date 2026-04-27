@@ -271,8 +271,7 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
         custo_variavel: custoVariavel,
         custo_direto_fixo: custoDiretoFixo,
         custo_total: custoTotal,
-        data_referencia: dataReferenciaNormalizada,
-        operacao_timestamp: new Date().toISOString()
+        data_referencia: dataReferenciaNormalizada
       };
 
       const camposInvalidos = [];
