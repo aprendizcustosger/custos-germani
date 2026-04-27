@@ -150,17 +150,18 @@ function roundTo2(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-export function parseCurrencyBRL(input) {
-  const cleaned = String(input || '0')
-    .replace(/r\$/gi, '')
-    .replace(/\s/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.')
-    .replace(/[^0-9.-]/g, '');
+export function parseCurrency(value) {
+  if (!value) return 0;
 
-  const value = parseFloat(cleaned);
-  if (!Number.isFinite(value)) return 0;
-  return roundTo2(value);
+  const num = parseFloat(
+    value
+      .toString()
+      .replace(/\./g, '')
+      .replace(',', '.')
+  );
+
+  if (!Number.isFinite(num)) return 0;
+  return roundTo2(num);
 }
 
 export function readWorkbook(arrayBuffer) {
@@ -236,7 +237,9 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
 
       const codigoProdutoNormalizado = normalizeCodigoProduto(produto);
       const descricaoNormalizada = String(descricao || '').replace(/\s+/g, ' ').trim();
-      const custoTotalNormalizado = parseCurrencyBRL(custoTotal);
+      const custoVariavelNormalizado = parseCurrency(row[mapping.custo_variavel]);
+      const custoDiretoFixoNormalizado = parseCurrency(row[mapping.custo_direto_fixo]);
+      const custoTotalNormalizado = parseCurrency(custoTotal);
       const custoTotalInformado = String(custoTotal ?? '').trim().length > 0;
 
       const camposInvalidos = [];
@@ -255,6 +258,8 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
       return {
         codigo_produto: codigoProdutoNormalizado,
         descricao: descricaoNormalizada,
+        custo_variavel: custoVariavelNormalizado,
+        custo_direto_fixo: custoDiretoFixoNormalizado,
         custo_total: custoTotalNormalizado,
         data_referencia: dataReferencia,
         operacao_timestamp: new Date().toISOString()
