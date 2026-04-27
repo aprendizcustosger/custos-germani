@@ -146,22 +146,34 @@ function normalizeCodigoProduto(value) {
   return raw.replace(/\s+/g, '');
 }
 
-function roundTo2(value) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+function roundTo4(value) {
+  return Math.round((value + Number.EPSILON) * 10000) / 10000;
 }
 
 export function parseCurrency(value) {
-  if (!value) return 0;
+  if (value === null || value === undefined) return 0;
 
-  const num = parseFloat(
-    value
-      .toString()
-      .replace(/\./g, '')
-      .replace(',', '.')
-  );
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return 0;
+    return roundTo4(value);
+  }
 
+  let str = String(value).trim();
+  if (!str) return 0;
+
+  str = str.replace(/\s+/g, '').replace(/[R$]/g, '');
+
+  if (str.includes(',')) {
+    str = str.replace(/\./g, '');
+    str = str.replace(',', '.');
+  }
+
+  if (!/^-?\d+(\.\d+)?$/.test(str)) return 0;
+
+  const num = Number(str);
   if (!Number.isFinite(num)) return 0;
-  return roundTo2(num);
+
+  return roundTo4(num);
 }
 
 export function readWorkbook(arrayBuffer) {

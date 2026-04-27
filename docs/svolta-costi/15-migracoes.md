@@ -18,6 +18,12 @@ create index if not exists idx_historico_data
 -- 003_idx_dicionario_hierarquia.sql
 create index if not exists idx_dicionario_hierarquia
   on dicionario_produtos (origem_id, familia_id, agrupamento_cod);
+
+-- 004_precision_historico_custos.sql
+alter table historico_custos
+  alter column custo_variavel type numeric(18,4) using round(custo_variavel::numeric, 4),
+  alter column custo_direto_fixo type numeric(18,4) using round(custo_direto_fixo::numeric, 4),
+  alter column custo_total type numeric(18,4) using round(custo_total::numeric, 4);
 ```
 
 ## 15.3 Controle de execução

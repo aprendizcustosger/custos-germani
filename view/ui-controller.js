@@ -465,7 +465,7 @@ async function renderTrendByFilters(data) {
   const labels = Object.keys(groupedByDate).sort((a, b) => a.localeCompare(b));
   const values = labels.map(label => {
     const entry = groupedByDate[label];
-    return Number((entry.total / Math.max(entry.count, 1)).toFixed(2));
+    return Number((entry.total / Math.max(entry.count, 1)).toFixed(4));
   });
 
   if (state.trendChart) state.trendChart.destroy();
@@ -499,7 +499,7 @@ async function renderTrendByFilters(data) {
 function formatCurrencyBRL(value) {
   return Number(value || 0).toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 4
   });
 }
 
