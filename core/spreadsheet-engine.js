@@ -233,6 +233,14 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
     return [];
   }
 
+  const dataReferenciaNormalizada = normalizeReferenceDate(dataReferencia);
+  if (!dataReferenciaNormalizada) {
+    console.error('Importação abortada: data_referencia inválida. Use o formato ISO YYYY-MM-DD.', {
+      dataReferencia
+    });
+    return [];
+  }
+
   return rows
     .map((row, index) => {
       const produto = row[mapping.codigo_produto];
@@ -273,11 +281,25 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
         custo_variavel: custoVariavelNormalizado,
         custo_direto_fixo: custoDiretoFixoNormalizado,
         custo_total: custoTotalNormalizado,
-        data_referencia: dataReferencia,
+        data_referencia: dataReferenciaNormalizada,
         operacao_timestamp: new Date().toISOString()
       };
     })
     .filter(Boolean);
+}
+
+function normalizeReferenceDate(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
 }
 
 export function countValidMappedColumns(mapping) {

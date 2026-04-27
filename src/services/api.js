@@ -61,13 +61,26 @@ function applyCascadeFilterInMemory(rows, filters) {
 }
 
 function isValidDateValue(value) {
-  if (!value) return false;
-  if (value instanceof Date) return !Number.isNaN(value.getTime());
-  if (typeof value !== 'string') return false;
+  return Boolean(normalizeISODate(value));
+}
+
+function normalizeISODate(value) {
+  if (!value) return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!trimmed) return false;
+  if (!trimmed) return null;
+
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (isoDateRegex.test(trimmed)) return trimmed;
+
   const parsed = new Date(trimmed);
-  return !Number.isNaN(parsed.getTime());
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
 }
 
 function roundTo4(value) {
@@ -282,6 +295,7 @@ export const api = {
   async importarHistoricoCustosComLog(payload, options = {}) {
     const totalLinhas = Array.isArray(payload) ? payload.length : 0;
     const inicio = new Date().toISOString();
+    const dataReferenciaSelecionada = normalizeISODate(options.dataReferencia);
     const baseLog = {
       status: 'processando',
       total_linhas: totalLinhas,
@@ -289,7 +303,7 @@ export const api = {
       linhas_erro: 0,
       iniciado_em: inicio,
       finalizado_em: null,
-      data_referencia: options.dataReferencia || null
+      data_referencia: dataReferenciaSelecionada
     };
 
     const { data: createdLog, error: createLogError } = await supabase
@@ -319,44 +333,71 @@ export const api = {
 
     const payloadValido = [];
     rows.forEach((row, index) => {
-      const validacao = validateHistoricoRow(row);
-      if (!validacao.valido) {
-        linhasErro += 1;
-        erros.push({ linha: index + 1, tipo: 'validacao', mensagem: validacao.erros.join('; '), row });
-        return;
-      }
+      const produto = String(row?.codigo_produto || '').trim();
+      const custoTotal = normalizeMoneyValue(row?.custo_total);
+      const dataReferencia = normalizeISODate(row?.data_referencia || dataReferenciaSelecionada);
 
-      const codigo = String(row.codigo_produto || '').trim();
-      const dict = dicionarioByCodigo.get(codigo);
-      if (!dict || isNullLike(dict.origem_id) || isNullLike(dict.familia_id) || isNullLike(dict.agrupamento_cod)) {
+      if (!produto || custoTotal === null || !dataReferencia) {
+        console.error('DADO INVÁLIDO', {
+          produto,
+          custoTotal,
+          dataReferencia
+        });
         linhasErro += 1;
         erros.push({
           linha: index + 1,
-          tipo: 'dicionario',
-          mensagem: `Produto ${codigo} sem mapeamento completo em dicionario_produtos.`,
+          tipo: 'validacao',
+          mensagem: 'codigo_produto, custo_total e data_referencia são obrigatórios.',
           row
         });
         return;
       }
 
+      const rowNormalizada = {
+        ...row,
+        codigo_produto: produto,
+        custo_total: custoTotal,
+        data_referencia: dataReferencia
+      };
+
+      const validacao = validateHistoricoRow(rowNormalizada);
+      if (!validacao.valido) {
+        linhasErro += 1;
+        erros.push({ linha: index + 1, tipo: 'validacao', mensagem: validacao.erros.join('; '), row: rowNormalizada });
+        return;
+      }
+
+      const dict = dicionarioByCodigo.get(produto);
+      if (!dict || isNullLike(dict.origem_id) || isNullLike(dict.familia_id) || isNullLike(dict.agrupamento_cod)) {
+        linhasErro += 1;
+        erros.push({
+          linha: index + 1,
+          tipo: 'dicionario',
+          mensagem: `Produto ${produto} sem mapeamento completo em dicionario_produtos.`,
+          row: rowNormalizada
+        });
+        return;
+      }
+
       payloadValido.push({
-        codigo_produto: codigo,
-        descricao: row.descricao ?? null,
-        custo_variavel: normalizeMoneyValue(row.custo_variavel),
-        custo_direto_fixo: normalizeMoneyValue(row.custo_direto_fixo),
-        custo_total: normalizeMoneyValue(row.custo_total),
-        data_referencia: row.data_referencia,
+        codigo_produto: produto,
+        descricao: rowNormalizada.descricao ?? null,
+        custo_variavel: normalizeMoneyValue(rowNormalizada.custo_variavel),
+        custo_direto_fixo: normalizeMoneyValue(rowNormalizada.custo_direto_fixo),
+        custo_total: custoTotal,
+        data_referencia: dataReferencia,
         operacao_timestamp: row.operacao_timestamp ?? new Date().toISOString()
       });
     });
 
     if (payloadValido.length > 0) {
-      const { error: upsertError } = await supabase
+      const { error: insertError } = await supabase
         .from(TABLES.historico)
-        .upsert(payloadValido, { onConflict: 'codigo_produto,data_referencia' });
+        .insert(payloadValido);
 
-      if (upsertError) {
-        return { data: null, error: upsertError };
+      if (insertError) {
+        console.error('ERRO SUPABASE:', insertError);
+        return { data: null, error: insertError };
       }
 
       linhasImportadas = payloadValido.length;
