@@ -5,10 +5,11 @@ import { fillSelect, calculateCascadeOptions, buildReportRows, calculateKpis } f
 
 const state = {
   user: null,
-  masters: { origens: [], familias: [], agrupamentos: [], dicionario: [], hierarquia: [] },
+  masters: { origens: [], familias: [], agrupamentos: [], produtos: [], dicionario: [], hierarquia: [] },
   chart: null,
   trendChart: null,
-  importMapping: null
+  importMapping: null,
+  unsubscribeFiltersRealtime: null
 };
 
 const dom = {
@@ -64,6 +65,7 @@ async function loadMasters(options = {}) {
     origens: masters.origens || [],
     familias: masters.familias || [],
     agrupamentos: masters.agrupamentos || [],
+    produtos: masters.produtos || [],
     dicionario: masters.dicionario || [],
     hierarquia: masters.hierarquia || []
   };
@@ -87,6 +89,12 @@ async function fetchMetadata() {
     state.masters.familias.map(item => ({ value: String(item.id), label: item.nome || item.descricao || String(item.id) })),
     { value: 'TODAS', label: 'TODAS' },
     dom.selF.value || 'TODAS'
+  );
+  fillSelect(
+    dom.selI,
+    state.masters.produtos.map(item => ({ value: String(item.codigo_produto), label: `${String(item.codigo_produto)} - ${item.descricao || '-'}` })),
+    { value: 'TODOS', label: 'TODOS' },
+    dom.selI.value || 'TODOS'
   );
   refreshCascade();
 }
@@ -135,6 +143,11 @@ function bindFilters() {
   dom.selI.addEventListener('change', () => autoRefreshReport());
   [dom.dtStart, dom.dtEnd].forEach(input => input.addEventListener('change', () => autoRefreshReport()));
   dom.analyzeBtn.addEventListener('click', runReport);
+
+  if (state.unsubscribeFiltersRealtime) state.unsubscribeFiltersRealtime();
+  state.unsubscribeFiltersRealtime = api.subscribeFiltrosRealtime(async () => {
+    await fetchMetadata();
+  });
 }
 
 function refreshCascade(trigger) {
@@ -241,6 +254,8 @@ async function handleImport(file) {
       </div>
     `
   });
+
+  await fetchMetadata();
 }
 
 async function confirmImport(totalProdutos, totalColunasValidas, familySummary = {}) {
