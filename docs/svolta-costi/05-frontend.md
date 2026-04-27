@@ -1,24 +1,12 @@
 # Capítulo 5 — Frontend
 
-## 5.1 Estrutura de diretórios
-O frontend é modularizado por responsabilidade.
+## Estrutura principal
+- `index.html`: layout das telas (Importação e Auditoria).
+- `view/ui-controller.js`: orquestra eventos, importação, filtros e gráficos.
+- `core/spreadsheet-engine.js`: parsing/mapeamento de planilha.
+- `core/report-engine.js`: cascata, KPIs e linhas de relatório.
 
-```text
-/workspace/custos-germani/
-├── index.html                     ← Entrada da aplicação
-├── view/
-│   └── ui-controller.js           ← Eventos, estado e renderização
-├── core/
-│   ├── spreadsheet-engine.js      ← Leitura e mapeamento de XLSX
-│   └── report-engine.js           ← Regras analíticas e KPIs
-└── assets/
-    └── style.css                  ← Estilos globais
-```
-
-## 5.2 Páginas e comportamento
-A navegação usa duas views principais dentro da SPA.
-
-| Tela | Comportamento | Ações |
-|------|---------------|-------|
-| Importação | Upload com validação e confirmação | Selecionar data, enviar planilha |
-| Auditoria | Filtros, tabela e gráficos | Definir período, analisar, abrir tendência |
+## Comportamento da UI
+- Filtros dinâmicos e em cascata.
+- Remoção de valores nulos/inválidos em selects.
+- Atualização por realtime (histórico e dicionário).

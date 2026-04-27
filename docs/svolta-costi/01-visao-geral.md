@@ -1,29 +1,19 @@
-# Capítulo 1 — Visão Geral do Sistema
+# Capítulo 1 — Visão Geral
 
-## 1.1 Objetivo do sistema
-O sistema monitora variações de custos de produtos com importação de planilhas e análise por período. A aplicação apresenta filtros em cascata por Origem, Família e Agrupamento.
+O sistema audita variação de custos por produto a partir de importação de planilhas e consulta histórica no Supabase.
 
-## 1.2 Público-alvo
-O sistema atende analistas de custos, controladoria e coordenação industrial.
+## Objetivo
+- Automatizar auditoria de custos.
+- Consolidar dados de planilhas de origem ERP/SAP.
+- Oferecer análise com filtros dinâmicos em cascata.
 
-| Perfil | Uso principal | Resultado esperado |
-|--------|---------------|-------------------|
-| Analista de custos | Importar planilhas e gerar relatório | Identificar variações e alertas |
-| Coordenação | Acompanhar tendência de produtos | Tomada de decisão por produto |
+## Fluxo operacional real
+1. Upload de planilha `.xlsx` com 5 colunas obrigatórias.
+2. Normalização e validação dos dados.
+3. Persistência em `historico_custos`.
+4. Consulta por período com filtros: Origem → Família → Agrupamento → Produto.
 
-## 1.3 Fluxo operacional
-O fluxo operacional inicia na importação e termina na análise gráfica/tabelada.
-
-```
-Usuário -> Upload de planilha -> Normalização de dados -> Upsert no Supabase
-       -> Seleção de período/filtros -> Consulta de histórico -> KPI/Gráfico/Tabela
-```
-
-## 1.4 Ambiente
-A aplicação roda como SPA em JavaScript e consome Supabase via cliente JS (ver Capítulo 2).
-
-| Propriedade | Valor | Propósito |
-|-------------|-------|-----------|
-| Tipo de app | Frontend SPA | Operação no navegador |
-| Base de dados | Supabase Postgres | Persistência de histórico e dicionário |
-| URL produção | Configurada por deploy estático | Acesso dos usuários |
+## Público principal
+- Controladoria
+- Custos industriais
+- Coordenação operacional
