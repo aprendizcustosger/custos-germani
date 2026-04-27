@@ -412,20 +412,27 @@ export const api = {
     }
 
     if (payloadValido.length > 0) {
-      for (const row of payloadValido) {
-        const { error: insertError } = await supabase
+      for (const registro of payloadValido) {
+        const { data, error } = await supabase
           .from(TABLES.historico)
-          .insert(row);
+          .insert(registro);
 
-        if (insertError) {
+        if (error) {
           linhasErro += 1;
           erros.push({
             linha: null,
             tipo: 'historico',
-            mensagem: `Falha ao inserir produto ${row.codigo_produto} no histórico: ${insertError.message || 'erro desconhecido'}`,
-            row
+            mensagem: `Falha ao inserir produto ${registro.codigo_produto} no histórico: ${error.message || 'erro desconhecido'}`,
+            row: registro
           });
-          console.error('ERRO SUPABASE (historico_custos):', insertError);
+          console.error('ERRO COMPLETO SUPABASE:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            registro,
+            data
+          });
           continue;
         }
 
