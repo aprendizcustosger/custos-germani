@@ -27,14 +27,16 @@ export function calculateCascadeOptions(state, masters) {
     codigo_produto: item?.codigo_produto ?? item?.produto ?? item?.codigo ?? null,
     descricao: item?.descricao ?? item?.nome ?? item?.produto_descricao ?? null
   }))
-    .filter(item => !isNullLike(item?.origem_id) && !isNullLike(item?.familia_id) && !isNullLike(item?.agrupamento_cod));
+    .filter(item => !isNullLike(item?.codigo_produto));
 
   const byOrigem = dictionary.filter(item =>
     state.origem === 'TODAS' || String(item.origem_id) === String(state.origem)
   );
 
   const familyIds = [...new Set(byOrigem
-    .map(x => String(x.familia_id).trim())
+    .map(x => x?.familia_id)
+    .filter(id => !isNullLike(id))
+    .map(id => String(id).trim())
     .filter(id => !isNullLike(id)))];
   const familyOptions = familyIds.map(id => {
     const fam = masters.familias.find(f => String(f.id) === id);
@@ -48,7 +50,9 @@ export function calculateCascadeOptions(state, masters) {
   );
 
   const groupIds = [...new Set(byFamilia
-    .map(x => String(x.agrupamento_cod).trim())
+    .map(x => x?.agrupamento_cod)
+    .filter(id => !isNullLike(id))
+    .map(id => String(id).trim())
     .filter(id => !isNullLike(id)))];
   const groupOptions = groupIds.map(id => {
     const grp = masters.agrupamentos.find(g => String(g.id) === id);
@@ -57,14 +61,26 @@ export function calculateCascadeOptions(state, masters) {
     .filter(item => !isNullLike(item.label))
     .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
-  const productBase = byFamilia.filter(item =>
-    state.agrupamento === 'TODOS' || String(item.agrupamento_cod) === String(state.agrupamento)
-  );
+  const allProducts = (masters.produtos || [])
+    .map(item => ({
+      codigo_produto: String(item?.codigo_produto || '').trim(),
+      descricao: item?.descricao || '-'
+    }))
+    .filter(item => !isNullLike(item?.codigo_produto));
+
+  const selectedAnyFilter = state.origem !== 'TODAS' || state.familia !== 'TODAS' || state.agrupamento !== 'TODOS';
+  const productCodesByCascade = new Set(byFamilia
+    .filter(item => state.agrupamento === 'TODOS' || String(item.agrupamento_cod) === String(state.agrupamento))
+    .map(item => String(item?.codigo_produto || '').trim())
+    .filter(Boolean));
+  const productBase = selectedAnyFilter
+    ? allProducts.filter(item => productCodesByCascade.has(item.codigo_produto))
+    : allProducts;
 
   const productMap = new Map();
   productBase.forEach(item => {
     if (!item.codigo_produto) return;
-    const codigo = String(item.codigo_produto);
+    const codigo = String(item.codigo_produto).trim();
     if (!productMap.has(codigo)) {
       productMap.set(codigo, { value: codigo, label: `${codigo} - ${item.descricao || '-'}` });
     }
