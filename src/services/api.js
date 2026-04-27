@@ -2,7 +2,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
 
 const TABLES = {
   historico: 'historico_custos',
@@ -19,7 +19,7 @@ export const MASTER_ADMIN = {
   password: 'Pedrok0206'
 };
 
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function resolveMasterId(row) {
   return row?.id ?? row?.codigo ?? row?.cod ?? row?.uuid ?? row?.value ?? null;
@@ -110,20 +110,18 @@ function sanitizeHierarchyRows(rows = []) {
 }
 
 async function getHistoricoWithClientFallback(filters) {
-  const baseQuery = sb
+  const withDescricao = await supabase
     .from(TABLES.historico)
-    .gte('data_referencia', filters.start)
-    .lte('data_referencia', filters.end);
-
-  const withDescricao = await baseQuery
     .select('codigo_produto, descricao, custo_total, data_referencia, user_id, operacao_timestamp')
+    .gte('data_referencia', filters.start)
+    .lte('data_referencia', filters.end)
     .order('data_referencia', { ascending: true });
 
   let historicoBase = withDescricao.data;
   let historicoError = withDescricao.error;
 
   if (historicoError && isMissingColumnError(historicoError, 'descricao')) {
-    const withoutDescricao = await sb
+    const withoutDescricao = await supabase
       .from(TABLES.historico)
       .select('codigo_produto, custo_total, data_referencia, user_id, operacao_timestamp')
       .gte('data_referencia', filters.start)
@@ -138,7 +136,7 @@ async function getHistoricoWithClientFallback(filters) {
   if (!historicoBase?.length) return { data: [], error: null };
 
   const codigos = [...new Set(historicoBase.map(item => item.codigo_produto).filter(Boolean))];
-  const { data: dicionarioRows, error: dicionarioError } = await sb
+  const { data: dicionarioRows, error: dicionarioError } = await supabase
     .from(TABLES.dicionario)
     .select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod')
     .in('codigo_produto', codigos)
@@ -168,26 +166,32 @@ async function getHistoricoWithClientFallback(filters) {
 }
 
 async function runDiagnosticoSemAgrupamento() {
-  const query = `
-    SELECT h.codigo_produto
-    FROM historico_custos h
-    JOIN dicionario_produtos dp
-      ON dp.codigo_produto = h.codigo_produto
-    LEFT JOIN categorias_agrupamento ca
-      ON ca.codigo = dp.agrupamento_cod
-    WHERE dp.agrupamento_cod IS NULL
-       OR ca.codigo IS NULL
-    GROUP BY h.codigo_produto
-    ORDER BY h.codigo_produto;
-  `;
+  const [{ data: historicoRows, error: historicoError }, { data: dicionarioRows, error: dicionarioError }, { data: agrupamentoRows, error: agrupamentoError }] = await Promise.all([
+    supabase.from(TABLES.historico).select('codigo_produto'),
+    supabase.from(TABLES.dicionario).select('codigo_produto, agrupamento_cod'),
+    supabase.from(TABLES.agrupamento).select('codigo')
+  ]);
 
-  const { data, error } = await sb.rpc('run_sql', { query });
-  if (error) {
-    console.warn('Diagnóstico de agrupamento indisponível (RPC run_sql não encontrada).', error?.message || error);
+  if (historicoError || dicionarioError || agrupamentoError) {
+    console.warn('Diagnóstico de agrupamento indisponível.', historicoError || dicionarioError || agrupamentoError);
     return [];
   }
 
-  return Array.isArray(data) ? data : [];
+  const codigosComHistorico = new Set((historicoRows || [])
+    .map(item => String(item?.codigo_produto || '').trim())
+    .filter(Boolean));
+  const agrupamentosValidos = new Set((agrupamentoRows || [])
+    .map(item => String(item?.codigo || '').trim())
+    .filter(Boolean));
+
+  return (dicionarioRows || [])
+    .filter(item => codigosComHistorico.has(String(item?.codigo_produto || '').trim()))
+    .filter(item => {
+      const agrupamentoCod = String(item?.agrupamento_cod || '').trim();
+      return !agrupamentoCod || !agrupamentosValidos.has(agrupamentoCod);
+    })
+    .map(item => ({ codigo_produto: item.codigo_produto }))
+    .sort((a, b) => String(a.codigo_produto).localeCompare(String(b.codigo_produto)));
 }
 
 export const api = {
@@ -199,11 +203,11 @@ export const api = {
       { data: agrupamentosRaw, error: agrupamentosError },
       { data: dicionarioRaw, error: dicionarioError }
     ] = await Promise.all([
-      sb.from(TABLES.historico).select('codigo_produto'),
-      sb.from(TABLES.origem).select('*').order('descricao'),
-      sb.from(TABLES.familia).select('*').order('descricao'),
-      sb.from(TABLES.agrupamento).select('*').order('descricao'),
-      sb.from(TABLES.dicionario)
+      supabase.from(TABLES.historico).select('codigo_produto'),
+      supabase.from(TABLES.origem).select('*').order('descricao'),
+      supabase.from(TABLES.familia).select('*').order('descricao'),
+      supabase.from(TABLES.agrupamento).select('*').order('descricao'),
+      supabase.from(TABLES.dicionario)
         .select('codigo_produto, descricao, origem_id, familia_id, agrupamento_cod')
         .not('origem_id', 'is', null)
         .not('familia_id', 'is', null)
@@ -253,32 +257,32 @@ export const api = {
   },
 
   async upsertHistoricoCustos(payload) {
-    return sb.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto,data_referencia' });
+    return supabase.from(TABLES.historico).upsert(payload, { onConflict: 'codigo_produto,data_referencia' });
   },
 
   async signIn(login, password) {
     const email = resolveLoginToEmail(login);
-    return sb.auth.signInWithPassword({ email, password });
+    return supabase.auth.signInWithPassword({ email, password });
   },
 
   async signInWithMasterBootstrap(login, password) {
     const email = resolveLoginToEmail(login);
-    const loginResult = await sb.auth.signInWithPassword({ email, password });
+    const loginResult = await supabase.auth.signInWithPassword({ email, password });
     if (!loginResult.error) return loginResult;
 
     const isMaster = login === MASTER_ADMIN.username && password === MASTER_ADMIN.password;
     if (!isMaster) return loginResult;
 
-    await sb.auth.signUp({ email: MASTER_ADMIN.email, password });
-    return sb.auth.signInWithPassword({ email: MASTER_ADMIN.email, password });
+    await supabase.auth.signUp({ email: MASTER_ADMIN.email, password });
+    return supabase.auth.signInWithPassword({ email: MASTER_ADMIN.email, password });
   },
 
   async signOut() {
-    return sb.auth.signOut();
+    return supabase.auth.signOut();
   },
 
   async getCurrentUser() {
-    return sb.auth.getUser();
+    return supabase.auth.getUser();
   },
 
   async importarHistoricoCustosComLog(payload, options = {}) {
@@ -295,7 +299,7 @@ export const api = {
       data_referencia: options.dataReferencia || null
     };
 
-    const { data: createdLog, error: createLogError } = await sb
+    const { data: createdLog, error: createLogError } = await supabase
       .from(TABLES.logImportacao)
       .insert(baseLog)
       .select('*')
@@ -309,7 +313,7 @@ export const api = {
     const rows = Array.isArray(payload) ? payload : [];
     const codigos = [...new Set(rows.map(row => String(row?.codigo_produto || '').trim()).filter(Boolean))];
 
-    const { data: dicionarioRows, error: dicionarioError } = await sb
+    const { data: dicionarioRows, error: dicionarioError } = await supabase
       .from(TABLES.dicionario)
       .select('codigo_produto, origem_id, familia_id, agrupamento_cod')
       .in('codigo_produto', codigos);
@@ -353,7 +357,7 @@ export const api = {
     });
 
     if (payloadValido.length > 0) {
-      const { error: upsertError } = await sb
+      const { error: upsertError } = await supabase
         .from(TABLES.historico)
         .upsert(payloadValido, { onConflict: 'codigo_produto,data_referencia' });
 
@@ -378,7 +382,7 @@ export const api = {
 
     let updateLogError = null;
     if (logId) {
-      const { error } = await sb.from(TABLES.logImportacao).update(fechamentoLog).eq('id', logId);
+      const { error } = await supabase.from(TABLES.logImportacao).update(fechamentoLog).eq('id', logId);
       updateLogError = error;
     }
 
@@ -399,7 +403,7 @@ export const api = {
       return { data: { origem_id: null, familia_id: null, agrupamento_cod: null, status: 'PENDENTE' }, error: null };
     }
 
-    const { data, error } = await sb
+    const { data, error } = await supabase
       .from(TABLES.dicionario)
       .select('origem_id, familia_id, agrupamento_cod')
       .eq('codigo_produto', codigo)
@@ -427,7 +431,7 @@ export const api = {
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - 6);
 
-    return sb
+    return supabase
       .from(TABLES.historico)
       .select('codigo_produto, custo_total, data_referencia')
       .eq('codigo_produto', codigoProduto)
