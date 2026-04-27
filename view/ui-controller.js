@@ -392,8 +392,8 @@ function renderTable(rows) {
       <td>${row.origem}</td>
       <td>${row.familia}</td>
       <td>${row.agrupamento}</td>
-      <td>R$ ${row.inicial.toFixed(2)}</td>
-      <td>R$ ${row.final.toFixed(2)}</td>
+      <td>R$ ${formatCurrencyBRL(row.inicial)}</td>
+      <td>R$ ${formatCurrencyBRL(row.final)}</td>
       <td>${row.variacao.toFixed(2)}%</td>
       <td><span class="badge ${row.alert ? 'alert' : 'ok'}">${row.alert ? 'ALTA' : 'OK'}</span></td>
     </tr>
@@ -432,7 +432,24 @@ async function renderTrendChart(codigo) {
       labels: (data || []).map(x => x.data_referencia),
       datasets: [{ label: `Tendência 6M - ${codigo}`, data: (data || []).map(x => Number(x.custo_total || 0)), borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', tension: 0.25, fill: true }]
     },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          ticks: {
+            callback: value => formatCurrencyBRL(value)
+          }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: context => `R$ ${formatCurrencyBRL(context.parsed.y)}`
+          }
+        }
+      }
+    }
   });
 }
 
@@ -458,7 +475,31 @@ async function renderTrendByFilters(data) {
       labels,
       datasets: [{ label: 'Histórico de custo médio', data: values, backgroundColor: '#38bdf8' }]
     },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          ticks: {
+            callback: value => formatCurrencyBRL(value)
+          }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: context => `R$ ${formatCurrencyBRL(context.parsed.y)}`
+          }
+        }
+      }
+    }
+  });
+}
+
+function formatCurrencyBRL(value) {
+  return Number(value || 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
   });
 }
 

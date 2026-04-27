@@ -76,8 +76,12 @@ function validateHistoricoRow(row = {}) {
   if (!String(row?.codigo_produto || '').trim()) erros.push('codigo_produto vazio');
   if (!String(row?.descricao || '').trim()) erros.push('descricao vazia');
   if (!String(row?.custo_total ?? '').trim()) erros.push('custo_total vazio');
-  const custo = Number(row?.custo_total);
-  if (!Number.isFinite(custo)) erros.push('custo_total inválido');
+  const custoVariavel = Number(row?.custo_variavel);
+  const custoDiretoFixo = Number(row?.custo_direto_fixo);
+  const custoTotal = Number(row?.custo_total);
+  if (!Number.isFinite(custoVariavel)) erros.push('custo_variavel inválido');
+  if (!Number.isFinite(custoDiretoFixo)) erros.push('custo_direto_fixo inválido');
+  if (!Number.isFinite(custoTotal)) erros.push('custo_total inválido');
   if (!isValidDateValue(row?.data_referencia)) erros.push('data_referencia inválida');
 
   return { valido: erros.length === 0, erros };
@@ -328,6 +332,8 @@ export const api = {
       payloadValido.push({
         codigo_produto: codigo,
         descricao: row.descricao ?? null,
+        custo_variavel: Number(row.custo_variavel),
+        custo_direto_fixo: Number(row.custo_direto_fixo),
         custo_total: Number(row.custo_total),
         data_referencia: row.data_referencia,
         operacao_timestamp: row.operacao_timestamp ?? new Date().toISOString()
