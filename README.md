@@ -72,12 +72,14 @@ Regras:
 ## 6) Processo de importação
 Para cada linha da planilha:
 1. ler `codigo_produto`
-2. buscar em `dicionario_produtos`
-3. obter `origem_id`, `familia_id`, `agrupamento_cod`
+2. garantir existência em `dicionario_produtos`:
+   - se já existir, seguir;
+   - se não existir, criar automaticamente com `descricao` da planilha e `origem_id/familia_id/agrupamento_cod = NULL`.
+3. inserir no histórico de custos.
 
-Se não encontrar mapeamento completo:
-- rejeitar/logar erro;
-- não inserir com `NULL`.
+Se houver falha ao criar no dicionário:
+- registrar log de erro;
+- continuar o processamento das demais linhas (não travar lote inteiro).
 
 Destino: `historico_custos`.
 
@@ -122,12 +124,13 @@ LEFT JOIN categorias_agrupamento ca ON d.agrupamento_cod = ca.codigo;
 ## 10) Regras críticas (não violar)
 - Não salvar texto em UUID.
 - Não usar descrição para categorizar.
-- Não permitir `NULL` em origem/família.
+- Permitir `NULL` temporário em origem/família/agrupamento para produtos novos recém-importados.
 - Não mostrar `null` nos filtros.
 - Não misturar dicionário estrutural com dados reais de custo.
 
 ## Resultado esperado
 - importação automática;
+- criação automática de novos produtos no `dicionario_produtos`;
 - dados consistentes;
 - filtros limpos;
 - zero erro de tipo;

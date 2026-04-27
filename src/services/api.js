@@ -201,6 +201,42 @@ async function runDiagnosticoSemAgrupamento() {
     .sort((a, b) => String(a.codigo_produto).localeCompare(String(b.codigo_produto)));
 }
 
+async function garantirProdutoNoDicionario(produto, descricao) {
+  const codigoProduto = String(produto || '').trim();
+  if (!codigoProduto) return { ok: false, reason: 'codigo_vazio' };
+
+  const { data, error } = await supabase
+    .from(TABLES.dicionario)
+    .select('codigo_produto')
+    .eq('codigo_produto', codigoProduto)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Erro ao buscar produto no dicionário:', { codigo_produto: codigoProduto, error });
+    return { ok: false, reason: 'erro_busca', error };
+  }
+
+  if (data) return { ok: true, created: false };
+
+  const { error: insertError } = await supabase
+    .from(TABLES.dicionario)
+    .insert({
+      codigo_produto: codigoProduto,
+      descricao: String(descricao || '').trim() || null,
+      origem_id: null,
+      familia_id: null,
+      agrupamento_cod: null
+    });
+
+  if (insertError) {
+    console.error('Erro ao criar produto no dicionário:', { codigo_produto: codigoProduto, error: insertError });
+    return { ok: false, reason: 'erro_insert', error: insertError };
+  }
+
+  console.log('Produto criado no dicionário:', codigoProduto);
+  return { ok: true, created: true };
+}
+
 export const api = {
   async getMasters() {
     const [
@@ -318,21 +354,9 @@ export const api = {
     const erros = [];
 
     const rows = Array.isArray(payload) ? payload : [];
-    const codigos = [...new Set(rows.map(row => String(row?.codigo_produto || '').trim()).filter(Boolean))];
-
-    const { data: dicionarioRows, error: dicionarioError } = await supabase
-      .from(TABLES.dicionario)
-      .select('codigo_produto, origem_id, familia_id, agrupamento_cod')
-      .in('codigo_produto', codigos);
-
-    if (dicionarioError) {
-      return { data: null, error: dicionarioError };
-    }
-
-    const dicionarioByCodigo = new Map((dicionarioRows || []).map(item => [String(item.codigo_produto).trim(), item]));
-
     const payloadValido = [];
-    rows.forEach((row, index) => {
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
       const produto = String(row?.codigo_produto || '').trim();
       const custoTotal = normalizeMoneyValue(row?.custo_total);
       const dataReferencia = normalizeISODate(row?.data_referencia || dataReferenciaSelecionada);
@@ -350,7 +374,7 @@ export const api = {
           mensagem: 'codigo_produto, custo_total e data_referencia são obrigatórios.',
           row
         });
-        return;
+        continue;
       }
 
       const rowNormalizada = {
@@ -364,19 +388,16 @@ export const api = {
       if (!validacao.valido) {
         linhasErro += 1;
         erros.push({ linha: index + 1, tipo: 'validacao', mensagem: validacao.erros.join('; '), row: rowNormalizada });
-        return;
+        continue;
       }
 
-      const dict = dicionarioByCodigo.get(produto);
-      if (!dict || isNullLike(dict.origem_id) || isNullLike(dict.familia_id) || isNullLike(dict.agrupamento_cod)) {
-        linhasErro += 1;
-        erros.push({
+      const garantiaDicionario = await garantirProdutoNoDicionario(produto, rowNormalizada.descricao);
+      if (!garantiaDicionario?.ok) {
+        console.warn('Falha ao garantir produto no dicionário; tentativa de importação continuará.', {
           linha: index + 1,
-          tipo: 'dicionario',
-          mensagem: `Produto ${produto} sem mapeamento completo em dicionario_produtos.`,
-          row: rowNormalizada
+          codigo_produto: produto,
+          motivo: garantiaDicionario?.reason || 'desconhecido'
         });
-        return;
       }
 
       payloadValido.push({
@@ -388,19 +409,28 @@ export const api = {
         data_referencia: dataReferencia,
         operacao_timestamp: row.operacao_timestamp ?? new Date().toISOString()
       });
-    });
+    }
 
     if (payloadValido.length > 0) {
-      const { error: insertError } = await supabase
-        .from(TABLES.historico)
-        .insert(payloadValido);
+      for (const row of payloadValido) {
+        const { error: insertError } = await supabase
+          .from(TABLES.historico)
+          .insert(row);
 
-      if (insertError) {
-        console.error('ERRO SUPABASE:', insertError);
-        return { data: null, error: insertError };
+        if (insertError) {
+          linhasErro += 1;
+          erros.push({
+            linha: null,
+            tipo: 'historico',
+            mensagem: `Falha ao inserir produto ${row.codigo_produto} no histórico: ${insertError.message || 'erro desconhecido'}`,
+            row
+          });
+          console.error('ERRO SUPABASE (historico_custos):', insertError);
+          continue;
+        }
+
+        linhasImportadas += 1;
       }
-
-      linhasImportadas = payloadValido.length;
     }
 
     const resumo = {
