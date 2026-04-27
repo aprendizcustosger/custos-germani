@@ -90,8 +90,12 @@ Fluxo real utilizado no sistema:
    - `dicionario_produtos.agrupamento_cod` (valor já conhecido);
    - `dicionario_master_produtos.agrupamento_cod` (quando disponível);
    - `NULL` (não bloqueia importação).
-5. **Inserção em `historico_custos`** somente para produtos válidos no dicionário mestre.
-6. **Consulta de filtros** baseada em produtos com custo real (join `historico_custos` + `dicionario_produtos` + `categorias_agrupamento`).
+5. **Garantia de existência em `dicionario_produtos`** antes da escrita de histórico:
+   - busca por `codigo_produto`;
+   - se não existir, cria automaticamente com `descricao` e campos de categorização nulos (`origem_id/familia_id/agrupamento_cod = NULL`).
+6. **Inserção em `historico_custos`** para qualquer produto válido da planilha (desde que respeite schema e FK).
+7. Se ocorrer erro pontual de criação no dicionário ou de inserção no histórico, o sistema registra log e continua as demais linhas.
+8. **Consulta de filtros** baseada em produtos com custo real (join `historico_custos` + `dicionario_produtos` + `categorias_agrupamento`).
 
 ---
 
