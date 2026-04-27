@@ -196,7 +196,7 @@ export function scanHeaders(rows) {
   };
 }
 
-export function mapRowsToPayload(rows, mapping, dataReferencia, userId) {
+export function mapRowsToPayload(rows, mapping, dataReferencia) {
   if (!mapping || typeof mapping !== 'object') {
     console.error('Importação abortada: objeto de mapeamento inválido.', mapping);
     return [];
@@ -257,7 +257,6 @@ export function mapRowsToPayload(rows, mapping, dataReferencia, userId) {
         descricao: descricaoNormalizada,
         custo_total: custoTotalNormalizado,
         data_referencia: dataReferencia,
-        user_id: userId,
         operacao_timestamp: new Date().toISOString()
       };
     })
