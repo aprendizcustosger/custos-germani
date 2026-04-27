@@ -218,6 +218,8 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
   const requiredColumns = {
     codigo_produto: mapping.codigo_produto,
     descricao: mapping.descricao,
+    custo_variavel: mapping.custo_variavel,
+    custo_direto_fixo: mapping.custo_direto_fixo,
     custo_total: mapping.custo_total
   };
 
@@ -245,45 +247,51 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
     .map((row, index) => {
       const produto = row[mapping.codigo_produto];
       const descricao = row[mapping.descricao];
-      const custoTotal = row[mapping.custo_total];
+      const custoVariavel = parseCurrency(row[mapping.custo_variavel]);
+      const custoDiretoFixo = parseCurrency(row[mapping.custo_direto_fixo]);
+      const custoTotal = parseCurrency(row[mapping.custo_total]);
 
       console.log('ROW ORIGINAL:', row);
       console.log('MAPPING:', mapping);
       console.log('VALORES EXTRAÍDOS:', {
         produto,
         descricao,
-        custoTotal
+        custo_variavel: custoVariavel,
+        custo_direto_fixo: custoDiretoFixo,
+        custo_total: custoTotal
       });
 
       const codigoProdutoNormalizado = normalizeCodigoProduto(produto);
       const descricaoNormalizada = String(descricao || '').replace(/\s+/g, ' ').trim();
-      const custoVariavelNormalizado = parseCurrency(row[mapping.custo_variavel]);
-      const custoDiretoFixoNormalizado = parseCurrency(row[mapping.custo_direto_fixo]);
-      const custoTotalNormalizado = parseCurrency(custoTotal);
-      const custoTotalInformado = String(custoTotal ?? '').trim().length > 0;
+      const custoTotalInformado = String(row[mapping.custo_total] ?? '').trim().length > 0;
+
+      const registro = {
+        codigo_produto: codigoProdutoNormalizado,
+        descricao: descricaoNormalizada,
+        custo_variavel: custoVariavel,
+        custo_direto_fixo: custoDiretoFixo,
+        custo_total: custoTotal,
+        data_referencia: dataReferenciaNormalizada,
+        operacao_timestamp: new Date().toISOString()
+      };
 
       const camposInvalidos = [];
       if (!codigoProdutoNormalizado) camposInvalidos.push('codigo_produto');
       if (!descricaoNormalizada) camposInvalidos.push('descricao');
       if (!custoTotalInformado) camposInvalidos.push('custo_total');
+      if (Number.isNaN(custoTotal)) camposInvalidos.push('custo_total inválido');
 
       if (camposInvalidos.length > 0) {
         console.error(`Linha ${index + 1} ignorada: campos obrigatórios ausentes (${camposInvalidos.join(', ')}).`, {
           row,
-          mapping
+          mapping,
+          registro
         });
         return null;
       }
 
-      return {
-        codigo_produto: codigoProdutoNormalizado,
-        descricao: descricaoNormalizada,
-        custo_variavel: custoVariavelNormalizado,
-        custo_direto_fixo: custoDiretoFixoNormalizado,
-        custo_total: custoTotalNormalizado,
-        data_referencia: dataReferenciaNormalizada,
-        operacao_timestamp: new Date().toISOString()
-      };
+      console.log('REGISTRO FINAL:', registro);
+      return registro;
     })
     .filter(Boolean);
 }
