@@ -151,3 +151,4 @@ Características dos filtros:
 - `core/report-engine.js`: cálculo da cascata e KPIs.
 - `src/services/api.js`: acesso Supabase e regras de gravação/consulta.
 - `docs/`: documentação detalhada por capítulo.
+- `docs/svolta-costi/20-playbook-operacional-atual.md`: playbook operacional com passo a passo atualizado.

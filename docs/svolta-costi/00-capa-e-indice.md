@@ -2,7 +2,7 @@
 
 **Sistema:** Germani Custos  
 **Escopo:** Estado atual implementado no repositório  
-**Atualização:** 2026-04-27
+**Atualização:** 2026-05-04
 
 ## Índice
 
@@ -16,5 +16,6 @@
 8. [Deploy](16-deploy.md)
 9. [Boas práticas e padrões](11-padroes-codigo.md)
 10. [Glossário](18-glossario.md)
+11. [Playbook operacional (passo a passo atual)](20-playbook-operacional-atual.md)
 
 > Os capítulos refletem o comportamento real do código atual. Itens de arquitetura futura são marcados explicitamente como evolução.
