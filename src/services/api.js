@@ -523,6 +523,64 @@ export const api = {
     return getHistoricoWithClientFallback(filters);
   },
 
+  async getLatestImportComparison(filters = {}) {
+    const { data: importRows, error: importError } = await supabase
+      .from(TABLES.historico)
+      .select('criado_em')
+      .order('criado_em', { ascending: false })
+      .limit(4000);
+
+    if (importError) return { data: null, error: importError };
+
+    const latestImports = [...new Set((importRows || []).map(row => row?.criado_em).filter(Boolean))].slice(0, 2);
+    if (latestImports.length < 2) {
+      return { data: { imports: [], resumo: null }, error: null };
+    }
+
+    const [latestImport, previousImport] = latestImports;
+
+    const { data: rows, error } = await supabase
+      .from(TABLES.historico)
+      .select('*')
+      .in('criado_em', [latestImport, previousImport]);
+
+    if (error) return { data: null, error };
+
+    const filteredRows = applyCascadeFilterInMemory((rows || []).filter(item => {
+      if (filters.start && String(item?.data_referencia || '') < String(filters.start)) return false;
+      if (filters.end && String(item?.data_referencia || '') > String(filters.end)) return false;
+      return true;
+    }), {
+      origem: filters.origem || 'TODAS',
+      familia: filters.familia || 'TODAS',
+      agrupamento: filters.agrupamento || 'TODOS',
+      item: filters.item || 'TODOS'
+    });
+
+    const statsByImport = [latestImport, previousImport].map(importDate => {
+      const importData = filteredRows.filter(row => row.criado_em === importDate);
+      const total = importData.reduce((acc, row) => acc + Number(row?.custo_total || 0), 0);
+      const quantidade = importData.length;
+      const media = quantidade ? total / quantidade : 0;
+      return { criado_em: importDate, quantidade, media: roundTo4(media) };
+    });
+
+    const latest = statsByImport[0];
+    const previous = statsByImport[1];
+    const variacaoPercentual = previous.media === 0 ? 0 : roundTo4(((latest.media - previous.media) / previous.media) * 100);
+
+    return {
+      data: {
+        imports: statsByImport,
+        resumo: {
+          variacao_percentual_media: variacaoPercentual,
+          delta_media: roundTo4(latest.media - previous.media)
+        }
+      },
+      error: null
+    };
+  },
+
   async getTrendsByProduct(codigoProduto) {
     const endDate = new Date();
     const startDate = new Date();

@@ -393,7 +393,14 @@ async function runReport(options = {}) {
   dom.kpiAlertas.textContent = kpis.totalAlertas;
   dom.kpiMedia.textContent = `${kpis.mediaVariacao.toFixed(2).replace('.', ',')}%`;
 
-  renderMainChart(rows);
+  await renderImportComparisonChart({
+    start,
+    end,
+    origem: dom.selO.value,
+    familia: dom.selF.value,
+    agrupamento: dom.selA.value,
+    item: dom.selI.value
+  });
   renderTable(rows);
   await renderTrendByFilters(data);
   dom.reportContent.classList.remove('hidden');
@@ -421,15 +428,61 @@ function renderTable(rows) {
   });
 }
 
-function renderMainChart(rows) {
+async function renderImportComparisonChart(filters) {
+  const { data, error } = await api.getLatestImportComparison(filters);
+  if (error) {
+    showToast('error', 'Falha ao buscar comparação entre importações.');
+    return;
+  }
+
+  const imports = data?.imports || [];
+  if (imports.length < 2) {
+    if (state.chart) state.chart.destroy();
+    return;
+  }
+
+  const labels = imports.map(item => new Date(item.criado_em).toLocaleString('pt-BR'));
+  const values = imports.map(item => Number(item.media || 0));
+  const counts = imports.map(item => Number(item.quantidade || 0));
+  const variacao = Number(data?.resumo?.variacao_percentual_media || 0);
+
   if (state.chart) state.chart.destroy();
   state.chart = new Chart(dom.mainChart, {
     type: 'bar',
     data: {
-      labels: rows.map(r => r.codigo),
-      datasets: [{ label: 'Variação %', data: rows.map(r => Number(r.variacao.toFixed(2))), backgroundColor: rows.map(r => (r.variacao > 0 ? '#ef4444' : r.variacao < 0 ? '#10b981' : '#9ca3af')) }]
+      labels,
+      datasets: [{ label: 'Custo médio por importação', data: values, backgroundColor: ['#0ea5e9', '#6366f1'] }]
     },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          ticks: {
+            callback: value => `R$ ${formatCurrencyBRL(value)}`
+          }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            title: items => {
+              const idx = items?.[0]?.dataIndex ?? 0;
+              return idx === 0 ? 'Última importação' : 'Importação anterior';
+            },
+            label: context => {
+              const idx = context.dataIndex;
+              return `R$ ${formatCurrencyBRL(context.parsed.y)} · ${counts[idx]} item(ns)`;
+            },
+            afterBody: items => {
+              const idx = items?.[0]?.dataIndex ?? 0;
+              if (idx !== 0) return '';
+              return `Variação média vs anterior: ${variacao.toFixed(2)}%`;
+            }
+          }
+        }
+      }
+    }
   });
 }
 
