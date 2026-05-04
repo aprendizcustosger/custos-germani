@@ -30,11 +30,14 @@ const dom = {
   selI: document.getElementById('selI'),
   analyzeBtn: document.getElementById('analyzeBtn'),
   reportContent: document.getElementById('reportContent'),
+  tablePanel: document.getElementById('tablePanel'),
   tableBody: document.getElementById('tableBody'),
   kpiItens: document.getElementById('kpiItens'),
   kpiAlertas: document.getElementById('kpiAlertas'),
   kpiMedia: document.getElementById('kpiMedia'),
+  mainChartPanel: document.getElementById('mainChartPanel'),
   mainChart: document.getElementById('mainChart'),
+  trendChartPanel: document.getElementById('trendChartPanel'),
   trendChart: document.getElementById('trendChart')
 };
 
@@ -387,13 +390,14 @@ async function runReport(options = {}) {
   }
 
   const rows = buildReportRows(data, state.masters).sort((a, b) => b.variacao - a.variacao);
+  const hasSingleItemAnalysis = rows.length === 1;
   const kpis = calculateKpis(rows);
 
   dom.kpiItens.textContent = kpis.totalItens;
   dom.kpiAlertas.textContent = kpis.totalAlertas;
   dom.kpiMedia.textContent = `${kpis.mediaVariacao.toFixed(2).replace('.', ',')}%`;
 
-  await renderImportComparisonChart({
+  const hasImportComparison = await renderImportComparisonChart({
     start,
     end,
     origem: dom.selO.value,
@@ -401,12 +405,20 @@ async function runReport(options = {}) {
     agrupamento: dom.selA.value,
     item: dom.selI.value
   });
-  renderTable(rows);
-  await renderTrendByFilters(data);
+  renderTable(rows, { hasSingleItemAnalysis });
+  const hasTrendData = await renderTrendByFilters(data);
+  applyReportLayout({ hasSingleItemAnalysis, hasImportComparison, hasTrendData });
   dom.reportContent.classList.remove('hidden');
 }
 
-function renderTable(rows) {
+function applyReportLayout({ hasSingleItemAnalysis, hasImportComparison, hasTrendData }) {
+  dom.reportContent.classList.toggle('single-item-mode', hasSingleItemAnalysis);
+  dom.mainChartPanel.classList.toggle('hidden', hasSingleItemAnalysis || !hasImportComparison);
+  dom.trendChartPanel.classList.toggle('hidden', !hasTrendData);
+}
+
+function renderTable(rows, options = {}) {
+  const { hasSingleItemAnalysis = false } = options;
   dom.tableBody.innerHTML = rows.map(row => `
     <tr class="${row.alert ? 'row-alert' : ''}" data-codigo="${row.codigo}">
       <td>${row.codigo}</td>
@@ -421,11 +433,17 @@ function renderTable(rows) {
     </tr>
   `).join('');
 
-  dom.tableBody.querySelectorAll('tr').forEach(tr => {
+  const tableRows = dom.tableBody.querySelectorAll('tr');
+  tableRows.forEach(tr => {
     tr.addEventListener('click', async () => {
       await renderTrendChart(tr.dataset.codigo);
+      dom.trendChartPanel.classList.remove('hidden');
     });
   });
+
+  if (hasSingleItemAnalysis && rows[0]?.codigo) {
+    renderTrendChart(rows[0].codigo);
+  }
 }
 
 async function renderImportComparisonChart(filters) {
@@ -438,7 +456,7 @@ async function renderImportComparisonChart(filters) {
   const imports = data?.imports || [];
   if (imports.length < 2) {
     if (state.chart) state.chart.destroy();
-    return;
+    return false;
   }
 
   const labels = imports.map(item => new Date(item.criado_em).toLocaleString('pt-BR'));
@@ -484,6 +502,7 @@ async function renderImportComparisonChart(filters) {
       }
     }
   });
+  return true;
 }
 
 async function renderTrendChart(codigo) {
@@ -531,6 +550,10 @@ async function renderTrendByFilters(data) {
   }, {});
 
   const labels = Object.keys(groupedByDate).sort((a, b) => a.localeCompare(b));
+  if (labels.length < 2) {
+    if (state.trendChart) state.trendChart.destroy();
+    return false;
+  }
   const values = labels.map(label => {
     const entry = groupedByDate[label];
     return Number((entry.total / Math.max(entry.count, 1)).toFixed(4));
@@ -562,6 +585,7 @@ async function renderTrendByFilters(data) {
       }
     }
   });
+  return true;
 }
 
 function formatCurrencyBRL(value) {

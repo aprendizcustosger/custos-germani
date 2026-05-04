@@ -120,6 +120,16 @@ input, select {
 .kpi strong { display: block; margin-top: 6px; font-size: 24px; }
 .chart-panel { height: 320px; }
 .table-panel { overflow-x: auto; }
+#reportContent.single-item-mode .table-panel {
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 16px 36px rgba(2, 132, 199, 0.22);
+}
+#reportContent.single-item-mode .table-panel table {
+  font-size: 15px;
+}
+#reportContent.single-item-mode .table-panel tbody tr:first-child td {
+  background: rgba(56, 189, 248, 0.14);
+}
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 th { color: #cbd5e1; font-size: 11px; text-transform: uppercase; }
