@@ -103,6 +103,12 @@ Origem real dos dados em tela:
 - **Produto:** vem de produtos com custo em `historico_custos`.
 - **Origem/Família/Agrupamento:** vêm de combinações existentes em `dicionario_produtos` para produtos que já têm custo histórico.
 
+Resumo temporal exibido na tabela da Auditoria:
+- **Último Custo:** custo mais recente por `criado_em DESC` em `historico_custos`.
+- **Penúltimo Custo:** segundo custo mais recente por `criado_em DESC`.
+- **Diferença:** `ultimo.custo_total - penultimo.custo_total` e variação percentual relativa.
+- **Última Atualização:** timestamp de `criado_em` do registro mais recente.
+
 Características dos filtros:
 - Dinâmicos.
 - Em cascata.

@@ -423,9 +423,10 @@ function renderTable(rows, options = {}) {
     <tr class="${row.alert ? 'row-alert' : ''}" data-codigo="${row.codigo}">
       <td>${row.codigo}</td>
       <td>${row.descricao}</td>
-      <td>${row.origem}</td>
-      <td>${row.familia}</td>
-      <td>${row.agrupamento}</td>
+      <td>${formatCurrencyCell(row.ultimoCusto)}</td>
+      <td>${formatCurrencyCell(row.penultimoCusto)}</td>
+      <td>${formatDiffCell(row.diferenca, row.variacaoTemporal)}</td>
+      <td>${formatDateTimeBR(row.ultimaAtualizacao)}</td>
       <td>R$ ${formatCurrencyBRL(row.inicial)}</td>
       <td>R$ ${formatCurrencyBRL(row.final)}</td>
       <td>${row.variacao.toFixed(2)}%</td>
@@ -444,6 +445,24 @@ function renderTable(rows, options = {}) {
   if (hasSingleItemAnalysis && rows[0]?.codigo) {
     renderTrendChart(rows[0].codigo);
   }
+}
+
+function formatCurrencyCell(value) {
+  if (value === null || value === undefined) return '-';
+  return `R$ ${formatCurrencyBRL(value)}`;
+}
+
+function formatDiffCell(diferenca, variacao) {
+  if (diferenca === null || diferenca === undefined) return '-';
+  const variacaoText = Number.isFinite(variacao) ? ` (${variacao.toFixed(2)}%)` : '';
+  return `${diferenca >= 0 ? '+' : '-'}R$ ${formatCurrencyBRL(Math.abs(diferenca))}${variacaoText}`;
+}
+
+function formatDateTimeBR(value) {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '-';
+  return parsed.toLocaleString('pt-BR');
 }
 
 async function renderImportComparisonChart(filters) {

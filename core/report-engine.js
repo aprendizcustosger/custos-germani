@@ -91,13 +91,6 @@ export function calculateCascadeOptions(state, masters) {
 }
 
 export function buildReportRows(historico, masters = { origens: [], familias: [], agrupamentos: [] }) {
-  const getMapa = (item) => {
-    if (Array.isArray(item?.mapa_produtos)) return item.mapa_produtos[0] || {};
-    if (item?.mapa_produtos) return item.mapa_produtos || {};
-    if (Array.isArray(item?.dicionario_produtos)) return item.dicionario_produtos[0] || {};
-    return item?.dicionario_produtos || {};
-  };
-
   const grouped = {};
   historico.forEach(item => {
     if (!grouped[item.codigo_produto]) grouped[item.codigo_produto] = [];
@@ -105,26 +98,29 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
   });
 
   return Object.values(grouped).map(items => {
-    const first = items[0];
-    const last = items[items.length - 1];
-    const ini = Number(first.custo_total || 0);
-    const fim = Number(last.custo_total || 0);
+    const byPeriodo = [...items].sort((a, b) => String(a.data_referencia || '').localeCompare(String(b.data_referencia || '')));
+    const first = byPeriodo[0];
+    const last = byPeriodo[byPeriodo.length - 1];
+    const ini = Number(first?.custo_total || 0);
+    const fim = Number(last?.custo_total || 0);
     const variacao = ini > 0 ? ((fim - ini) / ini) * 100 : 0;
-    const dict = getMapa(last);
-    const origemCod = String(dict.origem_id || '');
-    const familiaCod = String(dict.familia_id || '');
-    const agrupamentoCod = String(dict.agrupamento_cod || '');
 
-    const origem = masters.origens.find(item => String(item.id) === origemCod)?.descricao || dict.origem_id || '-';
-    const familia = masters.familias.find(item => String(item.id) === familiaCod)?.descricao || dict.familia_id || '-';
-    const agrupamento = masters.agrupamentos.find(item => String(item.id) === agrupamentoCod)?.descricao || dict.agrupamento_cod || '-';
+    const byCriadoEm = [...items].sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
+    const ultimo = byCriadoEm[0] || null;
+    const penultimo = byCriadoEm[1] || null;
+    const ultimoCusto = Number(ultimo?.custo_total || 0);
+    const penultimoCusto = Number(penultimo?.custo_total || 0);
+    const diferenca = ultimo ? (ultimoCusto - penultimoCusto) : 0;
+    const variacaoTemporal = penultimoCusto > 0 ? ((ultimoCusto - penultimoCusto) / penultimoCusto) * 100 : 0;
 
     return {
       codigo: first.codigo_produto,
-      descricao: last.descricao || dict.descricao || '-',
-      origem,
-      familia,
-      agrupamento,
+      descricao: last.descricao || '-',
+      ultimoCusto: ultimo ? ultimoCusto : null,
+      penultimoCusto: penultimo ? penultimoCusto : null,
+      diferenca: ultimo ? diferenca : null,
+      variacaoTemporal: ultimo ? variacaoTemporal : null,
+      ultimaAtualizacao: ultimo?.criado_em || null,
       inicial: ini,
       final: fim,
       variacao,
