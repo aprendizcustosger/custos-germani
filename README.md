@@ -165,5 +165,6 @@ Características dos filtros:
 - `core/spreadsheet-engine.js`: leitura/mapeamento/normalização da planilha.
 - `core/report-engine.js`: cálculo da cascata e KPIs.
 - `src/services/api.js`: acesso Supabase e regras de gravação/consulta.
-- `docs/`: documentação detalhada por capítulo.
-- `docs/svolta-costi/20-playbook-operacional-atual.md`: playbook operacional com passo a passo atualizado.
+- `docs/`: documentação técnica padronizada do projeto kustos.
+- `docs/arquitetura/indice-documentacao-kustos.md`: índice central da documentação.
+- `docs/troubleshooting/playbook-operacional.md`: playbook operacional com passo a passo atualizado.
