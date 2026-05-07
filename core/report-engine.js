@@ -92,6 +92,8 @@ export function calculateCascadeOptions(state, masters) {
 
 export function buildReportRows(historico, masters = { origens: [], familias: [], agrupamentos: [] }) {
   const LIMIAR_ALERTA_VARIACAO_PERCENTUAL = 5;
+  const LIMIAR_ESTAVEL = 3;
+  const LIMIAR_OSCILANDO = 8;
   const grouped = {};
   historico.forEach(item => {
     if (!grouped[item.codigo_produto]) grouped[item.codigo_produto] = [];
@@ -118,6 +120,22 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
     const alertaImportacao = Number.isFinite(variacaoTemporal)
       ? Math.abs(variacaoTemporal) >= LIMIAR_ALERTA_VARIACAO_PERCENTUAL
       : false;
+    const variacoesHistoricas = [];
+    for (let i = 1; i < byPeriodo.length; i += 1) {
+      const antigo = Number(byPeriodo[i - 1]?.custo_total || 0);
+      const novo = Number(byPeriodo[i]?.custo_total || 0);
+      if (!Number.isFinite(antigo) || !Number.isFinite(novo) || antigo <= 0) continue;
+      const variacaoIntervalo = Math.abs(((novo - antigo) / antigo) * 100);
+      if (Number.isFinite(variacaoIntervalo)) variacoesHistoricas.push(variacaoIntervalo);
+    }
+    const scoreInstabilidade = variacoesHistoricas.length
+      ? variacoesHistoricas.reduce((acc, cur) => acc + cur, 0) / variacoesHistoricas.length
+      : 0;
+    const classificacaoInstabilidade = scoreInstabilidade < LIMIAR_ESTAVEL
+      ? 'ESTÁVEL'
+      : scoreInstabilidade < LIMIAR_OSCILANDO
+        ? 'OSCILANDO'
+        : 'MUITO INSTÁVEL';
 
     return {
       codigo: first.codigo_produto,
@@ -130,6 +148,8 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
       inicial: ini,
       final: fim,
       variacao,
+      scoreInstabilidade,
+      classificacaoInstabilidade,
       alert: alertaImportacao,
       motivoAlerta: alertaImportacao
         ? `Variação de ${Math.abs(variacaoTemporal).toFixed(2)}% entre as duas últimas importações`
