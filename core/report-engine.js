@@ -91,6 +91,7 @@ export function calculateCascadeOptions(state, masters) {
 }
 
 export function buildReportRows(historico, masters = { origens: [], familias: [], agrupamentos: [] }) {
+  const LIMIAR_ALERTA_VARIACAO_PERCENTUAL = 5;
   const grouped = {};
   historico.forEach(item => {
     if (!grouped[item.codigo_produto]) grouped[item.codigo_produto] = [];
@@ -111,7 +112,12 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
     const ultimoCusto = Number(ultimo?.custo_total || 0);
     const penultimoCusto = Number(penultimo?.custo_total || 0);
     const diferenca = ultimo ? (ultimoCusto - penultimoCusto) : 0;
-    const variacaoTemporal = penultimoCusto > 0 ? ((ultimoCusto - penultimoCusto) / penultimoCusto) * 100 : 0;
+    const variacaoTemporal = penultimo && penultimoCusto > 0
+      ? ((ultimoCusto - penultimoCusto) / penultimoCusto) * 100
+      : null;
+    const alertaImportacao = Number.isFinite(variacaoTemporal)
+      ? Math.abs(variacaoTemporal) >= LIMIAR_ALERTA_VARIACAO_PERCENTUAL
+      : false;
 
     return {
       codigo: first.codigo_produto,
@@ -124,7 +130,10 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
       inicial: ini,
       final: fim,
       variacao,
-      alert: variacao > 5
+      alert: alertaImportacao,
+      motivoAlerta: alertaImportacao
+        ? `Variação de ${Math.abs(variacaoTemporal).toFixed(2)}% entre as duas últimas importações`
+        : null
     };
   });
 }
