@@ -481,6 +481,8 @@ function renderTable(rows, options = {}) {
       <td>R$ ${formatCurrencyBRL(row.inicial)}</td>
       <td>R$ ${formatCurrencyBRL(row.final)}</td>
       <td>${row.variacao.toFixed(2)}%</td>
+      <td>${row.scoreInstabilidade.toFixed(2)}%</td>
+      <td><span class="badge instability ${getInstabilityClass(row.classificacaoInstabilidade)}">${row.classificacaoInstabilidade}</span></td>
       <td><span class="badge ${row.alert ? 'alert' : 'ok'}" title="${row.motivoAlerta || 'Sem variação relevante entre importações'}">${row.alert ? 'ALERTA' : 'OK'}</span></td>
     </tr>
   `).join('');
@@ -493,6 +495,12 @@ function renderTable(rows, options = {}) {
     });
   });
 
+}
+
+function getInstabilityClass(classificacao) {
+  if (classificacao === 'ESTÁVEL') return 'stable';
+  if (classificacao === 'OSCILANDO') return 'oscillating';
+  return 'unstable';
 }
 
 

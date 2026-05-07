@@ -108,6 +108,12 @@ Resumo temporal exibido na tabela da Auditoria:
 - **Penúltimo Custo:** segundo custo mais recente por `criado_em DESC`.
 - **Diferença:** `ultimo.custo_total - penultimo.custo_total` e variação percentual relativa.
 - **Última Atualização:** timestamp de `criado_em` do registro mais recente.
+- **Score de Instabilidade (%):** média das variações percentuais absolutas entre pontos consecutivos do histórico no período filtrado.
+  - Fórmula por intervalo: `Math.abs(((novo - antigo) / antigo) * 100)`.
+  - Classificação automática:
+    - `ESTÁVEL` quando score `< 3%`;
+    - `OSCILANDO` quando score `>= 3%` e `< 8%`;
+    - `MUITO INSTÁVEL` quando score `>= 8%`.
 
 Painel **TOP VARIAÇÕES** na Auditoria:
 - Compara automaticamente a **última** e a **penúltima** importação (`criado_em`) em `historico_custos`.
