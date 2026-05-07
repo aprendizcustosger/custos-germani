@@ -430,7 +430,7 @@ function renderTable(rows, options = {}) {
       <td>R$ ${formatCurrencyBRL(row.inicial)}</td>
       <td>R$ ${formatCurrencyBRL(row.final)}</td>
       <td>${row.variacao.toFixed(2)}%</td>
-      <td><span class="badge ${row.alert ? 'alert' : 'ok'}">${row.alert ? 'ALTA' : 'OK'}</span></td>
+      <td><span class="badge ${row.alert ? 'alert' : 'ok'}" title="${row.motivoAlerta || 'Sem variação relevante entre importações'}">${row.alert ? 'ALERTA' : 'OK'}</span></td>
     </tr>
   `).join('');
 

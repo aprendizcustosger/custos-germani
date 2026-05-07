@@ -80,7 +80,13 @@ Resultado esperado:
 
 1. Aplicar filtros em cascata conforme o recorte desejado.
 2. Comparar custos por produto/agrupamento.
-3. Identificar outliers e variações para ação da equipe.
+3. Rodar comparação automática entre última e penúltima importação por produto:
+   - ordenar registros por `criado_em` (desc);
+   - usar os dois mais recentes;
+   - calcular variação percentual com a fórmula:
+     - `((novo - antigo) / antigo) * 100`
+4. Marcar alerta automático quando a variação absoluta entre importações for relevante (limiar atual: **5%**).
+5. Identificar outliers e variações para ação da equipe.
 
 Resultado esperado:
 - Painel utilizável para decisão de auditoria de custos.
