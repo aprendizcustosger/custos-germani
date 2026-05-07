@@ -37,6 +37,9 @@ const dom = {
   kpiMedia: document.getElementById('kpiMedia'),
   mainChartPanel: document.getElementById('mainChartPanel'),
   mainChart: document.getElementById('mainChart'),
+  topVariationsPanel: document.getElementById('topVariationsPanel'),
+  topIncreasesList: document.getElementById('topIncreasesList'),
+  topReductionsList: document.getElementById('topReductionsList'),
   trendChartPanel: document.getElementById('trendChartPanel'),
   trendChart: document.getElementById('trendChart')
 };
@@ -405,10 +408,50 @@ async function runReport(options = {}) {
     agrupamento: dom.selA.value,
     item: dom.selI.value
   });
+  await renderTopVariationsPanel({
+    start,
+    end,
+    origem: dom.selO.value,
+    familia: dom.selF.value,
+    agrupamento: dom.selA.value,
+    item: dom.selI.value
+  });
   renderTable(rows, { hasSingleItemAnalysis });
   const hasTrendData = await renderTrendByFilters(data);
   applyReportLayout({ hasSingleItemAnalysis, hasImportComparison, hasTrendData });
   dom.reportContent.classList.remove('hidden');
+}
+
+async function renderTopVariationsPanel(filters) {
+  const { data, error } = await api.getTopVariacoesImportacao(filters);
+  if (error) {
+    showToast('error', 'Falha ao calcular TOP VARIAÇÕES.');
+    dom.topVariationsPanel.classList.add('hidden');
+    return;
+  }
+
+  const aumentos = data?.aumentos || [];
+  const reducoes = data?.reducoes || [];
+  if (!aumentos.length && !reducoes.length) {
+    dom.topVariationsPanel.classList.add('hidden');
+    return;
+  }
+
+  dom.topIncreasesList.innerHTML = renderTopVariationItems(aumentos, 'increase');
+  dom.topReductionsList.innerHTML = renderTopVariationItems(reducoes, 'reduction');
+  dom.topVariationsPanel.classList.remove('hidden');
+}
+
+function renderTopVariationItems(items, type) {
+  if (!items.length) {
+    return '<li><span class="product">Sem dados comparáveis entre as 2 últimas importações.</span><span class="variation">-</span></li>';
+  }
+  return items.map(item => `
+    <li class="${type}">
+      <span class="product" title="${item.codigo_produto} - ${item.descricao}">${item.codigo_produto} - ${item.descricao}</span>
+      <span class="variation">${item.variacao_percentual >= 0 ? '+' : ''}${item.variacao_percentual.toFixed(2)}%</span>
+    </li>
+  `).join('');
 }
 
 function applyReportLayout({ hasSingleItemAnalysis, hasImportComparison, hasTrendData }) {

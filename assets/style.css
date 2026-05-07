@@ -120,6 +120,13 @@ input, select {
 .kpi strong { display: block; margin-top: 6px; font-size: 24px; }
 .chart-panel { height: 320px; }
 .table-panel { overflow-x: auto; }
+.top-variations-grid { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 18px; }
+.top-variation-list { list-style: none; margin-top: 10px; display: grid; gap: 8px; }
+.top-variation-list li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(15,23,42,0.35); }
+.top-variation-list li .product { color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top-variation-list li .variation { font-weight: 800; }
+.top-variation-list li.increase .variation { color: #fca5a5; }
+.top-variation-list li.reduction .variation { color: #86efac; }
 #reportContent.single-item-mode .table-panel {
   border-color: rgba(56, 189, 248, 0.55);
   box-shadow: 0 16px 36px rgba(2, 132, 199, 0.22);
@@ -141,4 +148,5 @@ th { color: #cbd5e1; font-size: 11px; text-transform: uppercase; }
 @media (max-width: 1160px) {
   .app-shell { grid-template-columns: 1fr; }
   .filters-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+  .top-variations-grid { grid-template-columns: 1fr; }
 }

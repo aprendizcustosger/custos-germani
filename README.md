@@ -109,6 +109,15 @@ Resumo temporal exibido na tabela da Auditoria:
 - **Diferença:** `ultimo.custo_total - penultimo.custo_total` e variação percentual relativa.
 - **Última Atualização:** timestamp de `criado_em` do registro mais recente.
 
+Painel **TOP VARIAÇÕES** na Auditoria:
+- Compara automaticamente a **última** e a **penúltima** importação (`criado_em`) em `historico_custos`.
+- Calcula por produto: `((novo - antigo) / antigo) * 100`.
+- Exibe:
+  - TOP 5 maiores aumentos de custo.
+  - TOP 5 maiores reduções de custo.
+- Respeita os mesmos filtros da Auditoria (período, origem, família, agrupamento e produto).
+- Implementado apenas com `supabase.from()` no frontend (sem RPC e sem SQL bruto).
+
 Características dos filtros:
 - Dinâmicos.
 - Em cascata.

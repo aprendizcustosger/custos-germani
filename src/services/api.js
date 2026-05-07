@@ -593,5 +593,64 @@ export const api = {
       .gte('data_referencia', startDate.toISOString().slice(0, 10))
       .lte('data_referencia', endDate.toISOString().slice(0, 10))
       .order('data_referencia', { ascending: true });
+  },
+
+  async getTopVariacoesImportacao(filters = {}) {
+    const { data: importRows, error: importError } = await supabase
+      .from(TABLES.historico)
+      .select('criado_em')
+      .order('criado_em', { ascending: false })
+      .limit(4000);
+
+    if (importError) return { data: null, error: importError };
+
+    const latestImports = [...new Set((importRows || []).map(row => row?.criado_em).filter(Boolean))].slice(0, 2);
+    if (latestImports.length < 2) return { data: { aumentos: [], reducoes: [], imports: latestImports }, error: null };
+
+    const [ultimaImportacao, penultimaImportacao] = latestImports;
+
+    const { data: rows, error } = await supabase
+      .from(TABLES.historico)
+      .select('codigo_produto, descricao, custo_total, criado_em, data_referencia')
+      .in('criado_em', [ultimaImportacao, penultimaImportacao]);
+    if (error) return { data: null, error };
+
+    const rowsFiltered = applyCascadeFilterInMemory((rows || []).filter(item => {
+      if (filters.start && String(item?.data_referencia || '') < String(filters.start)) return false;
+      if (filters.end && String(item?.data_referencia || '') > String(filters.end)) return false;
+      return true;
+    }), {
+      origem: filters.origem || 'TODAS',
+      familia: filters.familia || 'TODAS',
+      agrupamento: filters.agrupamento || 'TODOS',
+      item: filters.item || 'TODOS'
+    });
+
+    const byProduct = new Map();
+    rowsFiltered.forEach(row => {
+      const codigo = String(row.codigo_produto || '').trim();
+      if (!codigo) return;
+      if (!byProduct.has(codigo)) byProduct.set(codigo, { codigo_produto: codigo, descricao: row.descricao || '-', novo: null, antigo: null });
+      const bucket = byProduct.get(codigo);
+      if (row.criado_em === ultimaImportacao) bucket.novo = Number(row.custo_total || 0);
+      if (row.criado_em === penultimaImportacao) bucket.antigo = Number(row.custo_total || 0);
+    });
+
+    const variacoes = [...byProduct.values()]
+      .filter(item => Number.isFinite(item.novo) && Number.isFinite(item.antigo) && item.antigo !== 0)
+      .map(item => ({
+        ...item,
+        variacao_percentual: roundTo4(((item.novo - item.antigo) / item.antigo) * 100)
+      }))
+      .sort((a, b) => b.variacao_percentual - a.variacao_percentual);
+
+    return {
+      data: {
+        imports: latestImports,
+        aumentos: variacoes.filter(item => item.variacao_percentual > 0).slice(0, 5),
+        reducoes: [...variacoes].reverse().filter(item => item.variacao_percentual < 0).slice(0, 5)
+      },
+      error: null
+    };
   }
 };
