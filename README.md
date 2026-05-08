@@ -2,6 +2,14 @@
 
 Documentação oficial do estado **atual** do projeto (frontend + Supabase).
 
+
+## Documentos estratégicos
+
+- `VISION.md`: visão de produto, missão e direção estratégica do Kustos.
+- `docs/arquitetura/indice-documentacao-kustos.md`: índice da documentação técnica viva do sistema.
+
+---
+
 ## 1. Visão Geral
 
 O sistema automatiza a auditoria de custos de produtos importados de planilhas (origem ERP/SAP) e permite análise por período com filtros em cascata.
