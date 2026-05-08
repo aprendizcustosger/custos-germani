@@ -2,10 +2,11 @@
 
 **Sistema:** kustos germani  
 **Escopo:** estado atual implementado no repositório  
-**Atualização:** 2026-05-07
+**Atualização:** 2026-05-08
 
 ## Índice
 
+0. [Visão do produto (estratégica)](../../VISION.md)
 1. [Visão geral](./visao-geral-kustos.md)
 2. [Stack tecnológico](./stack-tecnologico.md)
 3. [Arquitetura de dados](./banco-de-dados.md)
