@@ -9,7 +9,13 @@ const state = {
   chart: null,
   trendChart: null,
   importMapping: null,
-  unsubscribeFiltersRealtime: null
+  unsubscribeFiltersRealtime: null,
+  reportRows: [],
+  reportView: {
+    sortKey: 'variacao',
+    sortDirection: 'desc',
+    quickFilter: 'all'
+  }
 };
 
 const dom = {
@@ -35,6 +41,7 @@ const dom = {
   kpiItens: document.getElementById('kpiItens'),
   kpiAlertas: document.getElementById('kpiAlertas'),
   kpiMedia: document.getElementById('kpiMedia'),
+  kpiCards: Array.from(document.querySelectorAll('[data-kpi-filter]')),
   mainChartPanel: document.getElementById('mainChartPanel'),
   mainChart: document.getElementById('mainChart'),
   topVariationsPanel: document.getElementById('topVariationsPanel'),
@@ -152,10 +159,32 @@ function bindFilters() {
   dom.selI.addEventListener('change', () => autoRefreshReport());
   [dom.dtStart, dom.dtEnd].forEach(input => input.addEventListener('change', () => autoRefreshReport()));
   dom.analyzeBtn.addEventListener('click', runReport);
+  bindInteractiveTableControls();
 
   if (state.unsubscribeFiltersRealtime) state.unsubscribeFiltersRealtime();
   state.unsubscribeFiltersRealtime = api.subscribeFiltrosRealtime(async () => {
     await fetchMetadata();
+  });
+}
+
+function bindInteractiveTableControls() {
+  dom.kpiCards.forEach(card => {
+    card.addEventListener('click', () => {
+      state.reportView.quickFilter = card.dataset.kpiFilter || 'all';
+      applyTableView();
+    });
+  });
+  document.querySelectorAll('th[data-sort-key]').forEach(th => {
+    th.addEventListener('click', () => {
+      const nextKey = th.dataset.sortKey;
+      if (state.reportView.sortKey === nextKey) {
+        state.reportView.sortDirection = state.reportView.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.reportView.sortKey = nextKey;
+        state.reportView.sortDirection = 'desc';
+      }
+      applyTableView();
+    });
   });
 }
 
@@ -462,7 +491,7 @@ async function runReport(options = {}) {
     return;
   }
 
-  const rows = buildReportRows(data, state.masters).sort((a, b) => b.variacao - a.variacao);
+  const rows = buildReportRows(data, state.masters);
   const hasSingleItemAnalysis = rows.length === 1;
   const kpis = calculateKpis(rows);
 
@@ -486,7 +515,8 @@ async function runReport(options = {}) {
     agrupamento: dom.selA.value,
     item: dom.selI.value
   });
-  renderTable(rows, { hasSingleItemAnalysis });
+  state.reportRows = rows;
+  applyTableView({ hasSingleItemAnalysis });
   const hasTrendData = await renderTemporalAnalysis(data, {
     origem: dom.selO.value,
     familia: dom.selF.value,
@@ -495,6 +525,40 @@ async function runReport(options = {}) {
   });
   applyReportLayout({ hasSingleItemAnalysis, hasImportComparison, hasTrendData });
   dom.reportContent.classList.remove('hidden');
+}
+
+function applyTableView(options = {}) {
+  const { hasSingleItemAnalysis = false } = options;
+  const filteredRows = state.reportRows.filter(row => {
+    if (state.reportView.quickFilter === 'alerts') return row.variacao > 5;
+    if (state.reportView.quickFilter === 'positive') return row.variacao > 0;
+    return true;
+  });
+  const sortedRows = [...filteredRows].sort((a, b) => compareRowsBySort(a, b, state.reportView.sortKey, state.reportView.sortDirection));
+  renderTable(sortedRows, { hasSingleItemAnalysis });
+  updateKpiCardState();
+  updateSortHeaderState();
+}
+
+function compareRowsBySort(a, b, key, direction) {
+  const order = direction === 'asc' ? 1 : -1;
+  const valueA = a?.[key];
+  const valueB = b?.[key];
+  if (key === 'alert') return ((valueA ? 1 : 0) - (valueB ? 1 : 0)) * order;
+  if (typeof valueA === 'number' || typeof valueB === 'number') return ((Number(valueA) || 0) - (Number(valueB) || 0)) * order;
+  return String(valueA || '').localeCompare(String(valueB || ''), 'pt-BR') * order;
+}
+
+function updateKpiCardState() {
+  dom.kpiCards.forEach(card => {
+    card.classList.toggle('active', card.dataset.kpiFilter === state.reportView.quickFilter);
+  });
+}
+
+function updateSortHeaderState() {
+  document.querySelectorAll('th[data-sort-key]').forEach(th => {
+    th.classList.toggle('sort-active', th.dataset.sortKey === state.reportView.sortKey);
+  });
 }
 
 async function renderTopVariationsPanel(filters) {

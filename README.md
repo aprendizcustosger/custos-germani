@@ -144,6 +144,14 @@ Painel **TOP VARIAÇÕES** na Auditoria:
 - Respeita os mesmos filtros da Auditoria (período, origem, família, agrupamento e produto).
 - Implementado apenas com `supabase.from()` no frontend (sem RPC e sem SQL bruto).
 
+Interatividade da tabela analítica:
+- Cards de KPI são clicáveis para filtros rápidos:
+  - **Itens analisados**: remove filtro rápido.
+  - **Alertas (>5%)**: exibe somente itens com `variacao > 5`.
+  - **Média de variação**: exibe somente variações positivas (`variacao > 0`).
+- Cabeçalhos da tabela permitem ordenação interativa (asc/desc) por coluna.
+- Clique em qualquer linha mantém a navegação para análise temporal do item selecionado.
+
 Características dos filtros:
 - Dinâmicos.
 - Em cascata.

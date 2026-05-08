@@ -83,17 +83,17 @@
 
         <div id="reportContent" class="hidden">
           <div class="kpis">
-            <article class="kpi glass"><span>Itens analisados</span><strong id="kpiItens">0</strong></article>
-            <article class="kpi glass"><span>Alertas (>5%)</span><strong id="kpiAlertas">0</strong></article>
-            <article class="kpi glass"><span>Média de variação</span><strong id="kpiMedia">0,00%</strong></article>
+            <article class="kpi glass clickable" id="kpiCardItens" data-kpi-filter="all"><span>Itens analisados</span><strong id="kpiItens">0</strong></article>
+            <article class="kpi glass clickable" id="kpiCardAlertas" data-kpi-filter="alerts"><span>Alertas (>5%)</span><strong id="kpiAlertas">0</strong></article>
+            <article class="kpi glass clickable" id="kpiCardMedia" data-kpi-filter="positive"><span>Média de variação</span><strong id="kpiMedia">0,00%</strong></article>
           </div>
 
           <div id="tablePanel" class="panel table-panel">
             <table>
               <thead>
                 <tr>
-                  <th>Código</th><th>Descrição</th><th>Último Custo</th><th>Penúltimo Custo</th><th>Diferença</th><th>Última Atualização</th>
-                  <th>Custo Inicial</th><th>Custo Final</th><th>Var%</th><th>Score Instab.</th><th>Classificação</th><th>Status</th>
+                  <th data-sort-key="codigo">Código</th><th data-sort-key="descricao">Descrição</th><th data-sort-key="ultimoCusto">Último Custo</th><th data-sort-key="penultimoCusto">Penúltimo Custo</th><th data-sort-key="diferenca">Diferença</th><th data-sort-key="ultimaAtualizacao">Última Atualização</th>
+                  <th data-sort-key="inicial">Custo Inicial</th><th data-sort-key="final">Custo Final</th><th data-sort-key="variacao">Var%</th><th data-sort-key="scoreInstabilidade">Score Instab.</th><th data-sort-key="classificacaoInstabilidade">Classificação</th><th data-sort-key="alert">Status</th>
                 </tr>
               </thead>
               <tbody id="tableBody"></tbody>
