@@ -248,4 +248,4 @@ A Auditoria agora exibe o painel **"Evolução Temporal de Custos"** com anális
 ### Fallback
 - Quando existir apenas 1 ponto temporal:
   - exibe `Histórico insuficiente para análise temporal`;
-  - oculta o canvas para evitar gráfico vazio.
+  - oculta o canvas para evitar gráfico vazio..
