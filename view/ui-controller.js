@@ -1,4 +1,4 @@
-/* Responsabilidade: controle de interface, auto-auth, eventos e gráficos. */
+/* Responsabilidade: controle de interface, eventos, gráficos e fluxo investigativo. */
 import { api } from '../src/services/api.js';
 import { readWorkbook, scanHeaders, countValidMappedColumns, REQUIRED_FIELDS, parseBrazilianNumber, formatBrazilianFinancial } from '../core/spreadsheet-engine.js';
 import { fillSelect, calculateCascadeOptions, buildReportRows, calculateKpis } from '../core/report-engine.js';
@@ -28,6 +28,10 @@ const dom = {
   dropZone: document.getElementById('dropZone'),
   fileInput: document.getElementById('fileInput'),
   importDate: document.getElementById('importDate'),
+  orphansBanner: document.getElementById('orphansBanner'),
+  orphansCount: document.getElementById('orphansCount'),
+  searchProduct: document.getElementById('searchProduct'),
+  productSuggestions: document.getElementById('productSuggestions'),
   dtStart: document.getElementById('dtStart'),
   dtEnd: document.getElementById('dtEnd'),
   selO: document.getElementById('selO'),
@@ -35,13 +39,20 @@ const dom = {
   selA: document.getElementById('selA'),
   selI: document.getElementById('selI'),
   analyzeBtn: document.getElementById('analyzeBtn'),
+  exportBtn: document.getElementById('exportBtn'),
   reportContent: document.getElementById('reportContent'),
   tablePanel: document.getElementById('tablePanel'),
   tableBody: document.getElementById('tableBody'),
   kpiItens: document.getElementById('kpiItens'),
   kpiAlertas: document.getElementById('kpiAlertas'),
+  kpiRegime: document.getElementById('kpiRegime'),
   kpiMedia: document.getElementById('kpiMedia'),
   kpiCards: Array.from(document.querySelectorAll('[data-kpi-filter]')),
+  drillPanel: document.getElementById('drillPanel'),
+  drillTitle: document.getElementById('drillTitle'),
+  drillSubtitle: document.getElementById('drillSubtitle'),
+  drillBody: document.getElementById('drillBody'),
+  drillClose: document.getElementById('drillClose'),
   mainChartPanel: document.getElementById('mainChartPanel'),
   mainChart: document.getElementById('mainChart'),
   topVariationsPanel: document.getElementById('topVariationsPanel'),
@@ -54,10 +65,57 @@ const dom = {
   trendFallback: document.getElementById('trendFallback')
 };
 
+// ── Utilitários ──────────────────────────────────────────────────────────────
+
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatCurrencyBRL(value) {
+  return Number(value || 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4
+  });
+}
+
+function formatDateTimeBR(value) {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '-';
+  return parsed.toLocaleString('pt-BR');
+}
+
+function formatDateBR(value) {
+  if (!value) return '-';
+  const parsed = new Date(value + 'T00:00:00');
+  if (Number.isNaN(parsed.getTime())) return '-';
+  return parsed.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+}
+
+function showToast(icon, text) {
+  Swal.fire({ toast: true, position: 'top-end', timer: 2600, showConfirmButton: false, icon, text });
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+
 async function init() {
   bindNavigation();
   bindUpload();
   bindFilters();
+  bindSearch();
   autoAuthenticate();
   await loadMasters({ force: true });
   await fetchMetadata();
@@ -85,11 +143,27 @@ async function loadMasters(options = {}) {
     dicionario: masters.dicionario || [],
     hierarquia: masters.hierarquia || []
   };
-  if (masters.diagnostico_sem_mapa?.length) {
-    console.warn(`Diagnóstico: ${masters.diagnostico_sem_mapa.length} produto(s) sem registro em mapa_produtos.`);
+
+  updateProductSuggestions();
+
+  const orphanCount = masters.diagnostico_sem_mapa?.length ?? 0;
+  if (orphanCount > 0) {
+    dom.orphansCount.textContent = orphanCount;
+    dom.orphansBanner.classList.remove('hidden');
+    console.warn(`Diagnóstico: ${orphanCount} produto(s) sem agrupamento válido.`);
+  } else {
+    dom.orphansBanner.classList.add('hidden');
   }
+
   fillSelect(dom.selO, state.masters.origens.map(x => ({ value: String(x.id), label: x.descricao })), { value: 'TODAS', label: 'TODAS' }, dom.selO.value || 'TODAS');
   refreshCascade();
+}
+
+function updateProductSuggestions() {
+  if (!dom.productSuggestions) return;
+  dom.productSuggestions.innerHTML = state.masters.produtos
+    .map(p => `<option value="${escapeHtml(p.codigo_produto)}">${escapeHtml(p.codigo_produto)} - ${escapeHtml(p.descricao || '')}</option>`)
+    .join('');
 }
 
 async function fetchMetadata() {
@@ -115,6 +189,8 @@ async function fetchMetadata() {
   refreshCascade();
 }
 
+// ── Navegação ─────────────────────────────────────────────────────────────────
+
 function bindNavigation() {
   dom.navItems.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -123,12 +199,12 @@ function bindNavigation() {
       btn.classList.add('active');
       Object.values(dom.views).forEach(v => v.classList.add('hidden'));
       dom.views[view].classList.remove('hidden');
-      if (view === 'report') {
-        fetchMetadata();
-      }
+      if (view === 'report') fetchMetadata();
     });
   });
 }
+
+// ── Importação ────────────────────────────────────────────────────────────────
 
 function bindUpload() {
   dom.dropZone.addEventListener('click', () => dom.fileInput.click());
@@ -152,86 +228,10 @@ function bindUpload() {
   });
 }
 
-function bindFilters() {
-  dom.selO.addEventListener('change', () => refreshCascade('origem'));
-  dom.selF.addEventListener('change', () => refreshCascade('familia'));
-  dom.selA.addEventListener('change', () => refreshCascade('agrupamento'));
-  dom.selI.addEventListener('change', () => autoRefreshReport());
-  [dom.dtStart, dom.dtEnd].forEach(input => input.addEventListener('change', () => autoRefreshReport()));
-  dom.analyzeBtn.addEventListener('click', runReport);
-  bindInteractiveTableControls();
-
-  if (state.unsubscribeFiltersRealtime) state.unsubscribeFiltersRealtime();
-  state.unsubscribeFiltersRealtime = api.subscribeFiltrosRealtime(async () => {
-    await fetchMetadata();
-  });
-}
-
-function bindInteractiveTableControls() {
-  dom.kpiCards.forEach(card => {
-    card.addEventListener('click', () => {
-      state.reportView.quickFilter = card.dataset.kpiFilter || 'all';
-      applyTableView();
-    });
-  });
-  document.querySelectorAll('th[data-sort-key]').forEach(th => {
-    th.addEventListener('click', () => {
-      const nextKey = th.dataset.sortKey;
-      if (state.reportView.sortKey === nextKey) {
-        state.reportView.sortDirection = state.reportView.sortDirection === 'asc' ? 'desc' : 'asc';
-      } else {
-        state.reportView.sortKey = nextKey;
-        state.reportView.sortDirection = 'desc';
-      }
-      applyTableView();
-    });
-  });
-}
-
-function refreshCascade(trigger) {
-  const currentFamily = dom.selF.value || 'TODAS';
-  const currentGroup = dom.selA.value || 'TODOS';
-  const currentItem = dom.selI.value || 'TODOS';
-
-  if (trigger === 'origem') {
-    dom.selF.value = 'TODAS';
-    dom.selA.value = 'TODOS';
-    dom.selI.value = 'TODOS';
-  }
-  if (trigger === 'familia') {
-    dom.selA.value = 'TODOS';
-    dom.selI.value = 'TODOS';
-  }
-  if (trigger === 'agrupamento') {
-    dom.selI.value = 'TODOS';
-  }
-
-  const familyValue = trigger === 'origem' ? 'TODAS' : currentFamily;
-  const { familyOptions } = calculateCascadeOptions({ origem: dom.selO.value, familia: familyValue }, state.masters);
-  fillSelect(dom.selF, familyOptions, { value: 'TODAS', label: 'TODAS' }, familyValue);
-
-  const { groupOptions, productOptions } = calculateCascadeOptions({
-    origem: dom.selO.value,
-    familia: dom.selF.value || 'TODAS',
-    agrupamento: dom.selA.value || 'TODOS'
-  }, state.masters);
-  const groupValue = ['origem', 'familia'].includes(trigger) ? 'TODOS' : currentGroup;
-  const itemValue = ['origem', 'familia', 'agrupamento'].includes(trigger) ? 'TODOS' : currentItem;
-  fillSelect(dom.selA, groupOptions, { value: 'TODOS', label: 'TODOS' }, groupValue);
-  fillSelect(dom.selI, productOptions, { value: 'TODOS', label: 'TODOS' }, itemValue);
-  autoRefreshReport();
-}
-
-function autoRefreshReport() {
-  if (dom.dtStart.value && dom.dtEnd.value) {
-    runReport({ silent: true });
-  }
-}
-
 async function handleImport(file) {
   const refDate = dom.importDate.value;
   if (!refDate) {
-    showToast('warning', 'Selecione a data de referência.');
+    showToast('warning', 'Selecione a data de referência (competência).');
     return;
   }
 
@@ -275,17 +275,13 @@ async function handleImport(file) {
     return;
   }
 
-  const resumoImportacao = resultadoImportacao?.resumo || {
-    total_linhas: payload.length,
-    linhas_importadas: payload.length,
-    linhas_erro: 0
-  };
+  const resumo = resultadoImportacao?.resumo || { total_linhas: payload.length, linhas_importadas: payload.length, linhas_erro: 0 };
   if (resultadoImportacao?.log_error) {
     console.warn('Falha ao registrar log da importação:', resultadoImportacao.log_error);
   }
 
-  const successCount = Number(resumoImportacao.linhas_importadas || 0);
-  const errorCount = Number(resumoImportacao.linhas_erro || 0);
+  const successCount = Number(resumo.linhas_importadas || 0);
+  const errorCount = Number(resumo.linhas_erro || 0);
   const successMessage = `${successCount} itens importados com sucesso`;
   showToast('success', successMessage);
   await Swal.fire({
@@ -293,7 +289,7 @@ async function handleImport(file) {
     title: successMessage,
     html: `
       <div style="text-align:left;">
-        <p><b>Total de linhas:</b> ${resumoImportacao.total_linhas}</p>
+        <p><b>Total de linhas:</b> ${resumo.total_linhas}</p>
         <p><b>Importadas:</b> ${successCount}</p>
         <p><b>Falhas:</b> ${errorCount}</p>
         ${errorCount > 0 ? `<p><b>${errorCount} itens falharam</b></p>` : ''}
@@ -395,15 +391,6 @@ function getFieldLabel(field) {
   return labels[field] || field;
 }
 
-function escapeHtml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
 function buildMappingSelect(field, headers = []) {
   const options = headers
     .map(header => `<option value="${escapeHtml(header)}">${escapeHtml(header)}</option>`)
@@ -440,9 +427,7 @@ async function confirmColumnMapping(headers, detectedMapping) {
     didOpen: () => {
       REQUIRED_FIELDS.forEach(field => {
         const select = document.getElementById(`map_${field}`);
-        if (select && detectedMapping[field]) {
-          select.value = detectedMapping[field];
-        }
+        if (select && detectedMapping[field]) select.value = detectedMapping[field];
       });
     },
     preConfirm: () => {
@@ -463,6 +448,125 @@ async function confirmColumnMapping(headers, detectedMapping) {
 
   return result.isConfirmed ? result.value : null;
 }
+
+// ── Busca Direta (bypass da hierarquia) ───────────────────────────────────────
+
+function bindSearch() {
+  dom.searchProduct.addEventListener('change', () => {
+    const raw = dom.searchProduct.value.trim();
+    if (!raw) return;
+
+    const code = raw.includes(' - ') ? raw.split(' - ')[0].trim() : raw;
+    const product = state.masters.produtos.find(p => String(p.codigo_produto).trim() === code);
+
+    if (product) {
+      jumpToProduct(product.codigo_produto);
+      dom.searchProduct.value = '';
+    } else {
+      showToast('warning', `Produto "${code}" não encontrado no cadastro.`);
+    }
+  });
+}
+
+function jumpToProduct(codigoProduto) {
+  dom.selO.value = 'TODAS';
+  dom.selF.value = 'TODAS';
+  dom.selA.value = 'TODOS';
+
+  const { familyOptions } = calculateCascadeOptions({ origem: 'TODAS', familia: 'TODAS' }, state.masters);
+  fillSelect(dom.selF, familyOptions, { value: 'TODAS', label: 'TODAS' }, 'TODAS');
+
+  const { groupOptions, productOptions } = calculateCascadeOptions(
+    { origem: 'TODAS', familia: 'TODAS', agrupamento: 'TODOS' },
+    state.masters
+  );
+  fillSelect(dom.selA, groupOptions, { value: 'TODOS', label: 'TODOS' }, 'TODOS');
+  fillSelect(dom.selI, productOptions, { value: 'TODOS', label: 'TODOS' }, codigoProduto);
+
+  autoRefreshReport();
+}
+
+// ── Filtros em cascata ────────────────────────────────────────────────────────
+
+function bindFilters() {
+  dom.selO.addEventListener('change', () => refreshCascade('origem'));
+  dom.selF.addEventListener('change', () => refreshCascade('familia'));
+  dom.selA.addEventListener('change', () => refreshCascade('agrupamento'));
+  dom.selI.addEventListener('change', () => autoRefreshReport());
+  [dom.dtStart, dom.dtEnd].forEach(input => input.addEventListener('change', () => autoRefreshReport()));
+  dom.analyzeBtn.addEventListener('click', runReport);
+  dom.exportBtn.addEventListener('click', exportReport);
+  dom.drillClose.addEventListener('click', () => dom.drillPanel.classList.add('hidden'));
+  bindInteractiveTableControls();
+
+  if (state.unsubscribeFiltersRealtime) state.unsubscribeFiltersRealtime();
+  state.unsubscribeFiltersRealtime = api.subscribeFiltrosRealtime(
+    debounce(async () => { await fetchMetadata(); }, 2000)
+  );
+}
+
+function bindInteractiveTableControls() {
+  dom.kpiCards.forEach(card => {
+    card.addEventListener('click', () => {
+      state.reportView.quickFilter = card.dataset.kpiFilter || 'all';
+      applyTableView();
+    });
+  });
+  document.querySelectorAll('th[data-sort-key]').forEach(th => {
+    th.addEventListener('click', () => {
+      const nextKey = th.dataset.sortKey;
+      if (state.reportView.sortKey === nextKey) {
+        state.reportView.sortDirection = state.reportView.sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.reportView.sortKey = nextKey;
+        state.reportView.sortDirection = 'desc';
+      }
+      applyTableView();
+    });
+  });
+}
+
+function refreshCascade(trigger) {
+  const currentFamily = dom.selF.value || 'TODAS';
+  const currentGroup = dom.selA.value || 'TODOS';
+  const currentItem = dom.selI.value || 'TODOS';
+
+  if (trigger === 'origem') {
+    dom.selF.value = 'TODAS';
+    dom.selA.value = 'TODOS';
+    dom.selI.value = 'TODOS';
+  }
+  if (trigger === 'familia') {
+    dom.selA.value = 'TODOS';
+    dom.selI.value = 'TODOS';
+  }
+  if (trigger === 'agrupamento') {
+    dom.selI.value = 'TODOS';
+  }
+
+  const familyValue = trigger === 'origem' ? 'TODAS' : currentFamily;
+  const { familyOptions } = calculateCascadeOptions({ origem: dom.selO.value, familia: familyValue }, state.masters);
+  fillSelect(dom.selF, familyOptions, { value: 'TODAS', label: 'TODAS' }, familyValue);
+
+  const { groupOptions, productOptions } = calculateCascadeOptions({
+    origem: dom.selO.value,
+    familia: dom.selF.value || 'TODAS',
+    agrupamento: dom.selA.value || 'TODOS'
+  }, state.masters);
+  const groupValue = ['origem', 'familia'].includes(trigger) ? 'TODOS' : currentGroup;
+  const itemValue = ['origem', 'familia', 'agrupamento'].includes(trigger) ? 'TODOS' : currentItem;
+  fillSelect(dom.selA, groupOptions, { value: 'TODOS', label: 'TODOS' }, groupValue);
+  fillSelect(dom.selI, productOptions, { value: 'TODOS', label: 'TODOS' }, itemValue);
+  autoRefreshReport();
+}
+
+function autoRefreshReport() {
+  if (dom.dtStart.value && dom.dtEnd.value) {
+    runReport({ silent: true });
+  }
+}
+
+// ── Relatório principal ───────────────────────────────────────────────────────
 
 async function runReport(options = {}) {
   const { silent = false, selectedProduct = null } = options;
@@ -497,19 +601,18 @@ async function runReport(options = {}) {
 
   dom.kpiItens.textContent = kpis.totalItens;
   dom.kpiAlertas.textContent = kpis.totalAlertas;
+  dom.kpiRegime.textContent = kpis.mudancasRegime;
   dom.kpiMedia.textContent = `${kpis.mediaVariacao.toFixed(2).replace('.', ',')}%`;
 
   const hasImportComparison = await renderImportComparisonChart({
-    start,
-    end,
+    start, end,
     origem: dom.selO.value,
     familia: dom.selF.value,
     agrupamento: dom.selA.value,
     item: dom.selI.value
   });
   await renderTopVariationsPanel({
-    start,
-    end,
+    start, end,
     origem: dom.selO.value,
     familia: dom.selF.value,
     agrupamento: dom.selA.value,
@@ -527,11 +630,14 @@ async function runReport(options = {}) {
   dom.reportContent.classList.remove('hidden');
 }
 
+// ── Tabela analítica ──────────────────────────────────────────────────────────
+
 function applyTableView(options = {}) {
   const { hasSingleItemAnalysis = false } = options;
   const filteredRows = state.reportRows.filter(row => {
     if (state.reportView.quickFilter === 'alerts') return row.variacao > 5;
     if (state.reportView.quickFilter === 'positive') return row.variacao > 0;
+    if (state.reportView.quickFilter === 'regime') return row.mudouRegime === true;
     return true;
   });
   const sortedRows = [...filteredRows].sort((a, b) => compareRowsBySort(a, b, state.reportView.sortKey, state.reportView.sortDirection));
@@ -544,7 +650,7 @@ function compareRowsBySort(a, b, key, direction) {
   const order = direction === 'asc' ? 1 : -1;
   const valueA = a?.[key];
   const valueB = b?.[key];
-  if (key === 'alert') return ((valueA ? 1 : 0) - (valueB ? 1 : 0)) * order;
+  if (key === 'alert' || key === 'mudouRegime') return ((valueA ? 1 : 0) - (valueB ? 1 : 0)) * order;
   if (typeof valueA === 'number' || typeof valueB === 'number') return ((Number(valueA) || 0) - (Number(valueB) || 0)) * order;
   return String(valueA || '').localeCompare(String(valueB || ''), 'pt-BR') * order;
 }
@@ -561,71 +667,34 @@ function updateSortHeaderState() {
   });
 }
 
-async function renderTopVariationsPanel(filters) {
-  const { data, error } = await api.getTopVariacoesImportacao(filters);
-  if (error) {
-    showToast('error', 'Falha ao calcular TOP VARIAÇÕES.');
-    dom.topVariationsPanel.classList.add('hidden');
-    return;
-  }
-
-  const aumentos = data?.aumentos || [];
-  const reducoes = data?.reducoes || [];
-  if (!aumentos.length && !reducoes.length) {
-    dom.topVariationsPanel.classList.add('hidden');
-    return;
-  }
-
-  dom.topIncreasesList.innerHTML = renderTopVariationItems(aumentos, 'increase');
-  dom.topReductionsList.innerHTML = renderTopVariationItems(reducoes, 'reduction');
-  dom.topVariationsPanel.classList.remove('hidden');
-}
-
-function renderTopVariationItems(items, type) {
-  if (!items.length) {
-    return '<li><span class="product">Sem dados comparáveis entre as 2 últimas importações.</span><span class="variation">-</span></li>';
-  }
-  return items.map(item => `
-    <li class="${type}">
-      <span class="product" title="${item.codigo_produto} - ${item.descricao}">${item.codigo_produto} - ${item.descricao}</span>
-      <span class="variation">${item.variacao_percentual >= 0 ? '+' : ''}${item.variacao_percentual.toFixed(2)}%</span>
-    </li>
-  `).join('');
-}
-
-function applyReportLayout({ hasSingleItemAnalysis, hasImportComparison, hasTrendData }) {
-  dom.reportContent.classList.toggle('single-item-mode', hasSingleItemAnalysis);
-  dom.mainChartPanel.classList.toggle('hidden', hasSingleItemAnalysis || !hasImportComparison);
-  dom.trendChartPanel.classList.toggle('hidden', !hasTrendData);
-}
-
 function renderTable(rows, options = {}) {
   const { hasSingleItemAnalysis = false } = options;
   dom.tableBody.innerHTML = rows.map(row => `
-    <tr class="${row.alert ? 'row-alert' : ''}" data-codigo="${row.codigo}">
-      <td>${row.codigo}</td>
-      <td>${row.descricao}</td>
+    <tr class="${row.alert ? 'row-alert' : row.mudouRegime ? 'row-regime' : ''}" data-codigo="${escapeHtml(row.codigo)}">
+      <td><strong>${escapeHtml(row.codigo)}</strong></td>
+      <td>${escapeHtml(row.descricao)}</td>
       <td>${formatCurrencyCell(row.ultimoCusto)}</td>
       <td>${formatCurrencyCell(row.penultimoCusto)}</td>
       <td>${formatDiffCell(row.diferenca, row.variacaoTemporal)}</td>
       <td>${formatDateTimeBR(row.ultimaAtualizacao)}</td>
+      <td>${row.dataCompetencia ? formatDateBR(row.dataCompetencia) : '-'}</td>
       <td>R$ ${formatCurrencyBRL(row.inicial)}</td>
       <td>R$ ${formatCurrencyBRL(row.final)}</td>
       <td>${row.variacao.toFixed(2)}%</td>
       <td>${row.scoreInstabilidade.toFixed(2)}%</td>
       <td><span class="badge instability ${getInstabilityClass(row.classificacaoInstabilidade)}">${row.classificacaoInstabilidade}</span></td>
+      <td><span class="badge ${row.mudouRegime ? 'regime-change' : 'regime-stable'}" title="${row.mudouRegime ? 'Era ESTÁVEL e ficou instável no período' : 'Comportamento estável no período'}">${row.mudouRegime ? '⚡ Mudou' : '—'}</span></td>
       <td><span class="badge ${row.alert ? 'alert' : 'ok'}" title="${row.motivoAlerta || 'Sem variação relevante entre importações'}">${row.alert ? 'ALERTA' : 'OK'}</span></td>
     </tr>
   `).join('');
 
-  const tableRows = dom.tableBody.querySelectorAll('tr');
-  tableRows.forEach(tr => {
+  dom.tableBody.querySelectorAll('tr[data-codigo]').forEach(tr => {
     tr.addEventListener('click', async () => {
-      const selected = tr.dataset.codigo;
-      await runReport({ silent: true, selectedProduct: selected });
+      const codigo = tr.dataset.codigo;
+      await renderDrillThrough(codigo);
+      await runReport({ silent: true, selectedProduct: codigo });
     });
   });
-
 }
 
 function getInstabilityClass(classificacao) {
@@ -633,7 +702,6 @@ function getInstabilityClass(classificacao) {
   if (classificacao === 'OSCILANDO') return 'oscillating';
   return 'unstable';
 }
-
 
 function formatCurrencyCell(value) {
   if (value === null || value === undefined) return '-';
@@ -646,13 +714,103 @@ function formatDiffCell(diferenca, variacao) {
   return `${diferenca >= 0 ? '+' : '-'}R$ ${formatCurrencyBRL(Math.abs(diferenca))}${variacaoText}`;
 }
 
-function formatDateTimeBR(value) {
-  if (!value) return '-';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '-';
-  return parsed.toLocaleString('pt-BR');
+// ── Drill-through: histórico completo de importações ─────────────────────────
+
+async function renderDrillThrough(codigoProduto) {
+  const { data: history, error } = await api.getProductHistory(codigoProduto);
+  if (error) {
+    showToast('error', 'Falha ao carregar histórico do produto.');
+    return;
+  }
+  if (!history?.length) {
+    showToast('info', 'Sem histórico para este produto.');
+    return;
+  }
+
+  const descricao = history[history.length - 1]?.descricao || '';
+  dom.drillTitle.textContent = `${escapeHtml(codigoProduto)} — ${escapeHtml(descricao)}`;
+  dom.drillSubtitle.textContent = `${history.length} registro(s) no histórico total · clique em uma linha para ver detalhes`;
+
+  dom.drillBody.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Competência</th>
+          <th>Importado em</th>
+          <th>Custo Variável</th>
+          <th>Custo Direto Fixo</th>
+          <th>Custo Total</th>
+          <th>Δ vs anterior</th>
+          <th>Δ%</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${history.map(row => {
+          const isAlert = row.deltaPerc !== null && Math.abs(row.deltaPerc) >= 5;
+          const deltaText = row.delta !== null
+            ? `${row.delta >= 0 ? '+' : ''}R$ ${formatCurrencyBRL(Math.abs(row.delta))}`
+            : '—';
+          const deltaPercText = row.deltaPerc !== null
+            ? `${row.deltaPerc >= 0 ? '+' : ''}${row.deltaPerc.toFixed(2)}%`
+            : '—';
+          const deltaClass = row.delta === null ? 'delta-neutral'
+            : row.delta > 0 ? 'delta-up'
+            : row.delta < 0 ? 'delta-down'
+            : 'delta-neutral';
+          return `
+            <tr class="${isAlert ? 'row-alert' : ''}">
+              <td><strong>${formatDateBR(row.data_referencia)}</strong></td>
+              <td>${formatDateTimeBR(row.criado_em)}</td>
+              <td>R$ ${formatCurrencyBRL(row.custo_variavel)}</td>
+              <td>R$ ${formatCurrencyBRL(row.custo_direto_fixo)}</td>
+              <td><strong>R$ ${formatCurrencyBRL(row.custo_total)}</strong></td>
+              <td class="${deltaClass}">${deltaText}</td>
+              <td class="${isAlert ? deltaClass : ''}">${deltaPercText}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+
+  dom.drillPanel.classList.remove('hidden');
+  dom.drillPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// ── Exportação ────────────────────────────────────────────────────────────────
+
+function exportReport() {
+  if (!state.reportRows.length) {
+    showToast('warning', 'Rode a análise antes de exportar.');
+    return;
+  }
+
+  const exportData = state.reportRows.map(row => ({
+    'Código': row.codigo,
+    'Descrição': row.descricao,
+    'Último Custo': row.ultimoCusto ?? '',
+    'Penúltimo Custo': row.penultimoCusto ?? '',
+    'Diferença (R$)': row.diferenca ?? '',
+    'Competência (último)': row.dataCompetencia ?? '',
+    'Importado em': row.ultimaAtualizacao ?? '',
+    'Custo Inicial': row.inicial,
+    'Custo Final': row.final,
+    'Variação (%)': row.variacao.toFixed(2),
+    'Score Instabilidade (%)': row.scoreInstabilidade.toFixed(2),
+    'Classificação': row.classificacaoInstabilidade,
+    'Mudança de Regime': row.mudouRegime ? 'SIM' : 'NÃO',
+    'Alerta': row.alert ? 'ALERTA' : 'OK'
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Auditoria');
+  const filename = `auditoria_custos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast('success', `Relatório exportado: ${filename}`);
+}
+
+// ── Gráficos ──────────────────────────────────────────────────────────────────
 
 const chartA11yTheme = {
   textColor: '#FFFFFF',
@@ -686,11 +844,12 @@ function getReadableChartOptions() {
     }
   };
 }
+
 async function renderImportComparisonChart(filters) {
   const { data, error } = await api.getLatestImportComparison(filters);
   if (error) {
     showToast('error', 'Falha ao buscar comparação entre importações.');
-    return;
+    return false;
   }
 
   const imports = data?.imports || [];
@@ -720,10 +879,7 @@ async function renderImportComparisonChart(filters) {
         ...baseA11yOptions.scales,
         y: {
           ...baseA11yOptions.scales.y,
-          ticks: {
-            ...baseA11yOptions.scales.y.ticks,
-            callback: value => `R$ ${formatCurrencyBRL(value)}`
-          }
+          ticks: { ...baseA11yOptions.scales.y.ticks, callback: value => `R$ ${formatCurrencyBRL(value)}` }
         }
       },
       plugins: {
@@ -752,6 +908,43 @@ async function renderImportComparisonChart(filters) {
   return true;
 }
 
+async function renderTopVariationsPanel(filters) {
+  const { data, error } = await api.getTopVariacoesImportacao(filters);
+  if (error) {
+    showToast('error', 'Falha ao calcular TOP VARIAÇÕES.');
+    dom.topVariationsPanel.classList.add('hidden');
+    return;
+  }
+
+  const aumentos = data?.aumentos || [];
+  const reducoes = data?.reducoes || [];
+  if (!aumentos.length && !reducoes.length) {
+    dom.topVariationsPanel.classList.add('hidden');
+    return;
+  }
+
+  dom.topIncreasesList.innerHTML = renderTopVariationItems(aumentos, 'increase');
+  dom.topReductionsList.innerHTML = renderTopVariationItems(reducoes, 'reduction');
+  dom.topVariationsPanel.classList.remove('hidden');
+}
+
+function renderTopVariationItems(items, type) {
+  if (!items.length) {
+    return '<li><span class="product">Sem dados comparáveis entre as 2 últimas importações.</span><span class="variation">-</span></li>';
+  }
+  return items.map(item => `
+    <li class="${type}">
+      <span class="product" title="${escapeHtml(item.codigo_produto)} - ${escapeHtml(item.descricao)}">${escapeHtml(item.codigo_produto)} - ${escapeHtml(item.descricao)}</span>
+      <span class="variation">${item.variacao_percentual >= 0 ? '+' : ''}${item.variacao_percentual.toFixed(2)}%</span>
+    </li>
+  `).join('');
+}
+
+function applyReportLayout({ hasSingleItemAnalysis, hasImportComparison, hasTrendData }) {
+  dom.reportContent.classList.toggle('single-item-mode', hasSingleItemAnalysis);
+  dom.mainChartPanel.classList.toggle('hidden', hasSingleItemAnalysis || !hasImportComparison);
+  dom.trendChartPanel.classList.toggle('hidden', !hasTrendData);
+}
 
 function buildTemporalSeries(rows = [], filters = {}) {
   const grouped = new Map();
@@ -840,26 +1033,12 @@ async function renderTemporalAnalysis(data, filters) {
         ...baseA11yOptions.scales,
         y: {
           ...baseA11yOptions.scales.y,
-          ticks: {
-            ...baseA11yOptions.scales.y.ticks,
-            callback: value => `R$ ${formatCurrencyBRL(value)}`
-          }
+          ticks: { ...baseA11yOptions.scales.y.ticks, callback: value => `R$ ${formatCurrencyBRL(value)}` }
         }
       }
     }
   });
   return true;
-}
-
-function formatCurrencyBRL(value) {
-  return Number(value || 0).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4
-  });
-}
-
-function showToast(icon, text) {
-  Swal.fire({ toast: true, position: 'top-end', timer: 2600, showConfirmButton: false, icon, text });
 }
 
 init();
