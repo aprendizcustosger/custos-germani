@@ -99,3 +99,5 @@ Objetivo: antecipar investigação humana.
 - Dashboards genéricos estilo Power BI
 - Microserviços desnecessários
 - IA genérica sem valor específico de auditoria de custos
+
+- [x] Hardening inicial concluído: configuração por ambiente, remoção de auto-auth e gate real de acesso.

@@ -1,8 +1,7 @@
 /* Responsabilidade: camada única de acesso ao Supabase (Auth + leitura + escrita). */
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-const SUPABASE_URL = 'https://umpebdovrazzrdndhigc.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGViZG92cmF6enJkbmRoaWdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODMyMjgsImV4cCI6MjA4OTg1OTIyOH0.ecAVT1-bLv3yZOp-GnyR88lpH0xSVXV2hM80rB0fm6M';
+import { appConfig, debugLog } from '../config/app-config.js';
 
 const TABLES = {
   historico: 'historico_custos',
@@ -19,7 +18,7 @@ export const MASTER_ADMIN = {
   // Credenciais não armazenadas em código-fonte
 };
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(appConfig.supabase.url, appConfig.supabase.anonKey);
 
 function resolveMasterId(row) {
   return row?.id ?? row?.codigo ?? row?.cod ?? row?.uuid ?? row?.value ?? null;
@@ -219,7 +218,7 @@ async function garantirProdutoNoDicionario(produto, descricao) {
     return { ok: false, reason: 'erro_insert', error: insertError };
   }
 
-  console.log('Produto criado no dicionário:', codigoProduto);
+  debugLog('Produto criado no dicionário:', codigoProduto);
   return { ok: true, created: true };
 }
 
@@ -434,7 +433,7 @@ export const api = {
             mensagem: `Falha ao inserir produto ${registro.codigo_produto} no histórico: ${error.message || 'erro desconhecido'}`,
             row: registro
           });
-          console.error('ERRO COMPLETO SUPABASE:', {
+          console.error('Falha Supabase ao upsert histórico:', {
             message: error.message,
             details: error.details,
             hint: error.hint,

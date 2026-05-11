@@ -123,3 +123,5 @@ Banner visível na tela de importação quando há produtos sem categorização 
 - Previsão de tendência baseada em série histórica
 - Integração direta com ERP/SAP para importação automatizada
 - Categorização automática de novos produtos via código de negócio
+
+- Segurança operacional mínima (config por ambiente + autenticação real) é pré-requisito para escala do motor investigativo.

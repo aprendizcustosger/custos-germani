@@ -1,0 +1,7 @@
+window.__KUSTOS_CONFIG__ = {
+  APP_ENV: 'development',
+  APP_MODE: 'secure_gate',
+  ENABLE_VERBOSE_LOGS: 'false',
+  SUPABASE_URL: '',
+  SUPABASE_ANON_KEY: ''
+};
