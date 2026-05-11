@@ -3,7 +3,7 @@
 Documentação oficial do estado **atual** do projeto (frontend + Supabase).
 
 
-## Documentos estratégicos (teste Angelo)
+## Documentos estratégicos
 
 - `VISION.md`: visão de produto, missão e direção estratégica do Kustos.
 - `ROADMAP.md`: fases estratégicas e prioridades de evolução do produto.
