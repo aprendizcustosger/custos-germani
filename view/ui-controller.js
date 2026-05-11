@@ -116,14 +116,49 @@ async function init() {
   bindUpload();
   bindFilters();
   bindSearch();
-  autoAuthenticate();
+  await requireAuthentication();
   await loadMasters({ force: true });
   await fetchMetadata();
 }
 
-function autoAuthenticate() {
-  state.user = { id: null, email: 'modo_local' };
-  dom.userBox.textContent = 'Usuário: modo local';
+async function requireAuthentication() {
+  const { data: currentUserData } = await api.getCurrentUser();
+  if (currentUserData?.user) {
+    state.user = currentUserData.user;
+    dom.userBox.textContent = `Usuário: ${state.user.email}`;
+    return;
+  }
+
+  const { value: credentials } = await Swal.fire({
+    title: 'Acesso operacional',
+    html: `
+      <input id="authLogin" class="swal2-input" placeholder="E-mail" autocomplete="username" />
+      <input id="authPassword" type="password" class="swal2-input" placeholder="Senha" autocomplete="current-password" />
+    `,
+    confirmButtonText: 'Entrar',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    focusConfirm: false,
+    preConfirm: () => {
+      const login = document.getElementById('authLogin')?.value?.trim();
+      const password = document.getElementById('authPassword')?.value || '';
+      if (!login || !password) {
+        Swal.showValidationMessage('Informe e-mail e senha.');
+        return null;
+      }
+      return { login, password };
+    }
+  });
+
+  if (!credentials) throw new Error('Autenticação cancelada.');
+
+  const { data, error } = await api.signIn(credentials.login, credentials.password);
+  if (error || !data?.user) {
+    throw new Error('Falha de autenticação. Verifique suas credenciais.');
+  }
+
+  state.user = data.user;
+  dom.userBox.textContent = `Usuário: ${state.user.email}`;
 }
 
 async function loadMasters(options = {}) {
@@ -1030,12 +1065,6 @@ function buildTemporalSeries(rows = [], filters = {}) {
     if (mode === 'produto') return Number((entry.values[0] || 0).toFixed(4));
     return Number((entry.sum / Math.max(entry.count, 1)).toFixed(4));
   });
-
-  console.debug('[Trend] Histórico bruto (scoped):', scopedRows);
-  console.debug('[Trend] Histórico deduplicado por produto+competência (última importação):', [...latestByProductAndCompetencia.values()]);
-  console.debug('[Trend] Labels finais:', labels);
-  console.debug('[Trend] Dataset final:', values);
-  console.debug('[Trend] Quantidade de registros usados:', latestByProductAndCompetencia.size);
 
   return { labels, values, mode };
 }

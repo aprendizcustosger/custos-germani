@@ -237,3 +237,33 @@ Seta o Item diretamente e executa o relatório em 1 interação.
 - `data_referencia` = competência; `criado_em` = evento de importação (não confundir)
 - Real-time debounced: 2s de delay para evitar reloads em cascata durante imports
 - Export via XLSX.js (mesma biblioteca já usada para leitura)
+
+---
+
+## 12. Segurança e Configuração por Ambiente
+
+A aplicação deixou de usar credenciais hardcoded e passou a usar configuração centralizada por ambiente.
+
+### Arquivos de configuração
+
+- `.env`: variáveis locais (não versionar segredos reais)
+- `.env.example`: modelo mínimo obrigatório
+- `runtime-config.js`: configuração carregada no browser
+- `runtime-config.example.js`: template para gerar `runtime-config.js`
+- `src/config/app-config.js`: módulo central de leitura/validação de config
+
+### Variáveis mínimas
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `APP_ENV` (`development`/`production`)
+- `APP_MODE` (`secure_gate`)
+- `ENABLE_VERBOSE_LOGS` (`true`/`false`)
+
+### Gate de autenticação
+
+`autoAuthenticate()` foi removido. O acesso agora exige autenticação real via Supabase (`signInWithPassword`) antes de carregar dados operacionais.
+
+### Preparação para RLS
+
+A camada `src/services/api.js` continua usando exclusivamente `supabase.from()` e agora depende de sessão autenticada para leitura/escrita, reduzindo acoplamento a acesso irrestrito e facilitando ativação progressiva de políticas RLS.

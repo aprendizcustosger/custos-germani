@@ -263,16 +263,6 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
       const custoDiretoFixo = parseCurrency(row[mapping.custo_direto_fixo]);
       const custoTotal = parseCurrency(row[mapping.custo_total]);
 
-      console.log('ROW ORIGINAL:', row);
-      console.log('MAPPING:', mapping);
-      console.log('VALORES EXTRAÍDOS:', {
-        produto,
-        descricao,
-        custo_variavel: custoVariavel,
-        custo_direto_fixo: custoDiretoFixo,
-        custo_total: custoTotal
-      });
-
       const codigoProdutoNormalizado = normalizeCodigoProduto(produto);
       const descricaoNormalizada = String(descricao || '').replace(/\s+/g, ' ').trim();
       const custoTotalInformado = String(row[mapping.custo_total] ?? '').trim().length > 0;
@@ -301,7 +291,6 @@ export function mapRowsToPayload(rows, mapping, dataReferencia) {
         return null;
       }
 
-      console.log('REGISTRO FINAL:', registro);
       return registro;
     })
     .filter(Boolean);

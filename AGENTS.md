@@ -173,3 +173,5 @@ SEMPRE atualizar ao fazer mudanças relevantes:
 * `docs/` conforme aplicável
 
 Toda mudança de comportamento temporal, de filtro ou de modelo de dados DEVE ser documentada com a distinção `data_referencia` vs. `criado_em`.
+
+- Atualização 2026-05-11: credenciais Supabase devem entrar via config de ambiente/runtime; `autoAuthenticate` está proibido.
