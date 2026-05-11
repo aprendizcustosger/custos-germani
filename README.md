@@ -110,6 +110,16 @@ Histórico completo de importações para o produto selecionado:
 - Delta monetário e percentual vs. registro anterior
 - Destaque em vermelho para variações ≥ 5%
 
+### Evolução Temporal de Custos (gráfico)
+
+Semântica investigativa do gráfico temporal:
+- Eixo temporal: **competência** (`data_referencia`)
+- Eixo de atualização: usa `criado_em` apenas para escolher o **registro mais recente por produto+competência**
+- Quando há produto selecionado: plota **custo unitário do produto** por competência (sem soma acumulada)
+- Quando não há produto selecionado: plota média agregada por competência com base no snapshot mais recente de cada produto
+
+Isso evita inflação por soma indevida de múltiplas importações da mesma competência.
+
 ### TOP VARIAÇÕES
 
 Compara automaticamente os dois últimos eventos de importação (`criado_em`):

@@ -947,22 +947,48 @@ function applyReportLayout({ hasSingleItemAnalysis, hasImportComparison, hasTren
 }
 
 function buildTemporalSeries(rows = [], filters = {}) {
+  const selectedItem = filters.item && filters.item !== 'TODOS' ? String(filters.item) : null;
+  const scopedRows = (rows || []).filter(row => {
+    if (!selectedItem) return true;
+    return String(row?.codigo_produto || '') === selectedItem;
+  });
+
+  const latestByProductAndCompetencia = new Map();
+  scopedRows.forEach(row => {
+    const competencia = row?.data_referencia;
+    const codigoProduto = String(row?.codigo_produto || '').trim();
+    if (!competencia || !codigoProduto) return;
+    const dedupeKey = `${codigoProduto}__${competencia}`;
+    const current = latestByProductAndCompetencia.get(dedupeKey);
+    if (!current || String(row?.criado_em || '') > String(current?.criado_em || '')) {
+      latestByProductAndCompetencia.set(dedupeKey, row);
+    }
+  });
+
   const grouped = new Map();
-  (rows || []).forEach(row => {
-    const key = row.data_referencia;
-    if (!key) return;
-    if (!grouped.has(key)) grouped.set(key, { sum: 0, count: 0 });
-    const entry = grouped.get(key);
-    entry.sum += Number(row.custo_total || 0);
+  [...latestByProductAndCompetencia.values()].forEach(row => {
+    const competencia = row.data_referencia;
+    if (!grouped.has(competencia)) grouped.set(competencia, { sum: 0, count: 0, values: [] });
+    const entry = grouped.get(competencia);
+    const custo = Number(row.custo_total || 0);
+    entry.sum += custo;
     entry.count += 1;
+    entry.values.push(custo);
   });
 
   const mode = filters.item && filters.item !== 'TODOS' ? 'produto' : 'agregado';
   const labels = [...grouped.keys()].sort((a, b) => a.localeCompare(b));
   const values = labels.map(label => {
     const entry = grouped.get(label);
-    return mode === 'produto' ? Number(entry.sum.toFixed(4)) : Number((entry.sum / Math.max(entry.count, 1)).toFixed(4));
+    if (mode === 'produto') return Number((entry.values[0] || 0).toFixed(4));
+    return Number((entry.sum / Math.max(entry.count, 1)).toFixed(4));
   });
+
+  console.debug('[Trend] Histórico bruto (scoped):', scopedRows);
+  console.debug('[Trend] Histórico deduplicado por produto+competência (última importação):', [...latestByProductAndCompetencia.values()]);
+  console.debug('[Trend] Labels finais:', labels);
+  console.debug('[Trend] Dataset final:', values);
+  console.debug('[Trend] Quantidade de registros usados:', latestByProductAndCompetencia.size);
 
   return { labels, values, mode };
 }
