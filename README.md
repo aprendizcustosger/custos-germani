@@ -95,6 +95,22 @@ Média das variações percentuais absolutas entre pontos consecutivos no perío
 - `OSCILANDO`: score 3–8%
 - `MUITO INSTÁVEL`: score ≥ 8%
 
+
+### Fila Investigativa (Tabela Principal)
+
+A tabela analítica evoluiu para uma **fila investigativa operacional** com hierarquia de leitura:
+
+- **Produto** (código + descrição)
+- **Variação** (delta monetário + %)
+- **Prioridade operacional** (`🔴 Crítico`, `🟠 Atenção`, `🟡 Monitorar`, `🟢 Estável`)
+- **Regime** (com destaque forte para mudança de regime)
+- **Contexto investigativo resumido** (pré-interpretação automática)
+
+Dados detalhados (sem perda analítica) ficam em **expansão por linha**: penúltimo custo, custo inicial/final, score de instabilidade e os dois eixos temporais explícitos:
+
+- **Importado em (`criado_em`)** = evento de importação
+- **Competência (`data_referencia`)** = validade operacional do custo
+
 ### Detecção de Mudança de Regime
 
 Produto com ≥ 4 pontos no período: compara instabilidade da primeira metade vs. segunda metade.
