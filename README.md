@@ -1,251 +1,213 @@
-# Sistema de Auditoria de Custos Germani
+# Kustos Germani — Motor de Investigação de Custos
 
-Documentação oficial do estado **atual** do projeto (frontend + Supabase).
+Sistema operacional de auditoria analítica de custos. Não é um dashboard genérico.
 
+É um cockpit investigativo que transforma planilhas ERP em velocidade de investigação.
+
+---
 
 ## Documentos estratégicos
 
-- `VISION.md`: visão de produto, missão e direção estratégica do Kustos.
-- `ROADMAP.md`: fases estratégicas e prioridades de evolução do produto.
-- `docs/arquitetura/indice-documentacao-kustos.md`: índice da documentação técnica viva do sistema.
+- `VISION.md`: identidade do produto, princípios e direção estratégica
+- `ROADMAP.md`: fases entregues e próximas, com raciocínio de priorização
+- `AGENTS.md`: guia para agentes e desenvolvedores (regras técnicas e de produto)
+- `docs/arquitetura/indice-documentacao-kustos.md`: índice da documentação técnica
 
 ---
 
 ## 1. Visão Geral
 
-O sistema automatiza a auditoria de custos de produtos importados de planilhas (origem ERP/SAP) e permite análise por período com filtros em cascata.
+O sistema importa planilhas de custo (origem ERP/SAP), armazena histórico temporal e oferece investigação analítica por produto com filtros em cascata e drill-through de eventos.
 
-Fluxo operacional real:
-1. Usuário seleciona `data_referencia` e importa planilha `.xlsx`.
-2. O frontend detecta e confirma o mapeamento das 5 colunas obrigatórias.
-3. O sistema gera preview inteligente (até 20 linhas) com status por linha (`🟢 válida`, `🟡 atenção`, `🔴 erro`).
-4. O usuário confirma a importação após revisar o preview.
-5. Apenas linhas sem erro são normalizadas e enviadas ao Supabase.
-6. O sistema garante existência do produto em `dicionario_produtos`.
-7. O histórico é gravado em `historico_custos`.
-8. A tela de auditoria consulta custos e aplica filtros dinâmicos (Origem → Família → Agrupamento → Produto).
+**Princípio central**: o investigador deve encontrar o problema em segundos, não em minutos.
 
 ---
 
-## 2. Arquitetura de Dados
+## 2. Fluxo Operacional
 
-### `categorias_origem`
-- `id` (UUID): chave técnica.
-- `codigo` (TEXT): **chave de negócio**.
-- `descricao` (TEXT): rótulo exibido no frontend.
+### Importação
 
-### `categorias_familia`
-- `id` (UUID): chave técnica.
-- `codigo` (TEXT): **chave de negócio**.
-- `descricao` (TEXT): rótulo exibido no frontend.
+1. Selecionar data de referência (competência operacional)
+2. Arrastar planilha `.xlsx` ou clicar na área de upload
+3. Confirmar mapeamento de colunas (detecção automática com fuzzy matching)
+4. Revisar preview linha a linha (🟢 válida / 🟡 atenção / 🔴 erro)
+5. Confirmar importação — somente linhas sem erro são gravadas
 
-### `dicionario_produtos`
-- `codigo_produto` (TEXT): chave do produto.
-- `origem_id` (UUID): referência técnica para categoria de origem.
-- `familia_id` (UUID): referência técnica para categoria de família.
-- `agrupamento_cod` (TEXT): código técnico/lógico de agrupamento.
-- `descricao` (TEXT): descrição de apoio do produto.
+### Auditoria
 
-### `historico_custos`
-- `codigo_produto` (TEXT).
-- `custo_variavel` (NUMERIC 18,4).
-- `custo_direto_fixo` (NUMERIC 18,4).
-- `custo_total` (NUMERIC 18,4).
-- `data_referencia` (DATE).
-- `descricao` é mantida como snapshot textual do item importado.
-
-### Regras explícitas de identidade
-- Backend/persistência: lógica de relacionamento via **código de negócio** + FKs técnicas.
-- Frontend: exibe **descrição** (não expõe UUID como informação de negócio).
-- UUID (`id`) em categorias é apenas chave técnica de integração.
+1. **Busca direta** (novo): digitar código ou descrição — acesso imediato sem navegar pela hierarquia
+2. Ou usar filtros em cascata: Origem → Família → Agrupamento → Item
+3. Definir período (dtInício + dtFim) — relatório atualiza automaticamente
+4. Clicar em qualquer linha da tabela → abre **drill-through** com histórico completo de importações
+5. Usar KPIs clicáveis para filtrar rapidamente:
+   - **Itens analisados**: todos
+   - **Alertas (>5%)**: variações relevantes entre importações
+   - **Mudanças de Regime**: produtos que eram ESTÁVEL e ficaram instáveis
+   - **Média de variação**: variações positivas
+6. Exportar relatório para Excel
 
 ---
 
-## 3. Categorização (Cascata)
+## 3. Arquitetura de Dados
 
-Cascata funcional da UI e da auditoria:
+### Separação Fato × Dimensão
 
-**Origem → Família → Agrupamento → Produto**
+**Tabela fato**: `historico_custos`
+- `codigo_produto` (TEXT)
+- `descricao` (TEXT) — snapshot no momento da importação
+- `custo_variavel` (NUMERIC 18,4)
+- `custo_direto_fixo` (NUMERIC 18,4)
+- `custo_total` (NUMERIC 18,4)
+- `data_referencia` (DATE) — **competência operacional** (quando o custo é válido)
+- `criado_em` (TIMESTAMPTZ) — **evento de importação** (quando entrou no sistema)
+- UNIQUE: `(codigo_produto, data_referencia)`
 
-Fonte real da hierarquia usada nos filtros:
-- `dicionario_produtos` (via `hierarquia`/`dicionario` carregados em `api.getMasters`).
+**Dimensão produtos**: `dicionario_produtos`
+- `codigo_produto` (TEXT) — chave de negócio
+- `origem_id` (UUID) → `categorias_origem.id`
+- `familia_id` (UUID) → `categorias_familia.id`
+- `agrupamento_cod` (TEXT) → `categorias_agrupamento.codigo`
 
-Papel das tabelas de categoria:
-- `categorias_origem` e `categorias_familia` enriquecem os códigos técnicos com `descricao` para exibição.
+**Dimensões de categoria**: `categorias_origem`, `categorias_familia`, `categorias_agrupamento`
+- `id` (UUID): chave técnica de integração
+- `codigo` (TEXT): chave de negócio
+- `descricao` (TEXT): rótulo exibido na UI
 
-Importante:
-- A lógica de cascata não depende de texto legado como “FAMILIA XXXX”.
-- A categorização opera com IDs/códigos persistidos no dicionário e labels das categorias.
+### Semântica Temporal (importante)
+
+O sistema tem dois eixos de tempo distintos:
+
+| Campo | Uso |
+|---|---|
+| `data_referencia` | Período de competência do custo — usado para análise temporal |
+| `criado_em` | Data de importação — usado para identificar "última importação" vs. "penúltima" |
+
+Estes conceitos nunca devem ser confundidos. O drill-through exibe os dois explicitamente.
 
 ---
 
-## 4. Importação de Dados
+## 4. Capacidades Analíticas
+
+### Score de Instabilidade
+
+Média das variações percentuais absolutas entre pontos consecutivos no período:
+- `ESTÁVEL`: score < 3%
+- `OSCILANDO`: score 3–8%
+- `MUITO INSTÁVEL`: score ≥ 8%
+
+### Detecção de Mudança de Regime
+
+Produto com ≥ 4 pontos no período: compara instabilidade da primeira metade vs. segunda metade.
+- `ESTÁVEL` na primeira metade + `OSCILANDO` ou `MUITO INSTÁVEL` na segunda → `mudouRegime = true`
+- Aparece como KPI "Mudanças de Regime" e coluna "⚡ Mudou" na tabela
+
+### Drill-through de Eventos
+
+Histórico completo de importações para o produto selecionado:
+- Competência (data_referencia): período de vigência
+- Importado em (criado_em): data/hora da entrada no sistema
+- Custo variável, direto fixo e total
+- Delta monetário e percentual vs. registro anterior
+- Destaque em vermelho para variações ≥ 5%
+
+### TOP VARIAÇÕES
+
+Compara automaticamente os dois últimos eventos de importação (`criado_em`):
+- TOP 5 maiores aumentos de custo
+- TOP 5 maiores reduções de custo
+
+### Alerta de Importação
+
+Variação > 5% entre os dois últimos imports de um produto → badge ALERTA.
+
+---
+
+## 5. Módulos
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `view/ui-controller.js` | Orquestração de UI, busca, drill-through, export, gráficos |
+| `core/spreadsheet-engine.js` | Parsing de planilhas, detecção fuzzy de colunas, normalização |
+| `core/report-engine.js` | Cálculos analíticos, cascata, detecção de regime |
+| `src/services/api.js` | Camada única de acesso Supabase |
+| `services/api.js` | Shim de compatibilidade (re-exporta de src/services) |
+| `assets/style.css` | Estilos globais |
+| `index.html` | Estrutura HTML e carregamento de dependências |
+
+### Dependências externas (CDN)
+
+- `XLSX.js`: leitura e exportação de planilhas Excel
+- `Chart.js`: gráficos temporais e de comparação
+- `SweetAlert2`: diálogos de confirmação e preview
+- `Supabase JS v2`: acesso ao banco de dados
+- `RemixIcon`: ícones
+
+---
+
+## 6. Regras de Identidade
+
+- **Backend/persistência**: lógica via código de negócio + FKs técnicas
+- **Frontend**: exibe `descricao` — UUID nunca é semântica de negócio na UI
+- **Categorização**: nunca depende de texto livre — sempre opera por código/FK
+- **Credenciais**: nunca armazenadas em código-fonte
+
+---
+
+## 7. Importação — Comportamento
 
 ### Colunas obrigatórias (5)
-A importação exige mapeamento dos campos:
-- `Produto` (`codigo_produto`)
-- `Descrição` (`descricao`)
-- `Custo Variável` (`custo_variavel`)
-- `Custo Direto Fixo` (`custo_direto_fixo`)
-- `Custo Total` (`custo_total`)
 
-### Comportamento da ingestão
-- Colunas extras são aceitas e ignoradas.
-- O processamento não falha por colunas adicionais.
-- Cabeçalhos podem ser detectados por aliases e confirmação manual.
-- Alias tolera variações de caixa e nomes próximos (ex.: `Cod Produto`, `Código`, `Vl Total`).
-- Colunas irrelevantes (ex.: CIF, Derivação e códigos extras) permanecem fora do mapeamento obrigatório.
-
-### Preview e validações antes da gravação
-- Exibe amostra de 10~20 linhas com:
-  - Produto,
-  - Descrição,
-  - Custos normalizados,
-  - Status por linha.
-- Valida por linha:
-  - produto ausente,
-  - produto não encontrado no cadastro,
-  - descrição vazia,
-  - custo negativo,
-  - custo total zerado,
-  - conversão numérica para zero.
-- Linhas com erro não bloqueiam o lote inteiro: apenas são excluídas da carga final.
+| Campo | Aliases detectados automaticamente |
+|---|---|
+| `codigo_produto` | produto, codigo, cod, item, cod produto |
+| `descricao` | descrição, desc |
+| `custo_variavel` | custo variavel, custo var, variavel |
+| `custo_direto_fixo` | fixo, direto fixo, custo fixo |
+| `custo_total` | total, custo total, vl total, valor total |
 
 ### Parsing numérico
-- Remove separador de milhar quando necessário.
-- Converte vírgula decimal para ponto.
-- Arredonda/normaliza para até **4 casas decimais**.
-- UI sempre exibe no padrão financeiro brasileiro com **3 casas decimais**.
-- Valores inválidos são tratados como inválidos e podem gerar rejeição da linha na validação final.
 
-### Robustez
-- Cada linha é validada.
-- Produto ausente no dicionário é criado automaticamente com categorização nula inicial.
-- Falhas por linha são registradas sem interromper todo o lote.
+- Remove separadores de milhar e símbolo R$
+- Converte vírgula decimal para ponto
+- Arredonda para 4 casas decimais (exibição em 2-4 casas)
+- Trata notação científica em códigos de produto
 
----
+### Produto novo
 
-## 5. Auditoria e Filtros
-
-Origem real dos dados em tela:
-
-- **Produto:** vem de produtos com custo em `historico_custos`.
-- **Origem/Família/Agrupamento:** vêm de combinações existentes em `dicionario_produtos` para produtos que já têm custo histórico.
-
-Resumo temporal exibido na tabela da Auditoria:
-- **Último Custo:** custo mais recente por `criado_em DESC` em `historico_custos`.
-- **Penúltimo Custo:** segundo custo mais recente por `criado_em DESC`.
-- **Diferença:** `ultimo.custo_total - penultimo.custo_total` e variação percentual relativa.
-- **Última Atualização:** timestamp de `criado_em` do registro mais recente.
-- **Score de Instabilidade (%):** média das variações percentuais absolutas entre pontos consecutivos do histórico no período filtrado.
-  - Fórmula por intervalo: `Math.abs(((novo - antigo) / antigo) * 100)`.
-  - Classificação automática:
-    - `ESTÁVEL` quando score `< 3%`;
-    - `OSCILANDO` quando score `>= 3%` e `< 8%`;
-    - `MUITO INSTÁVEL` quando score `>= 8%`.
-
-Painel **TOP VARIAÇÕES** na Auditoria:
-- Compara automaticamente a **última** e a **penúltima** importação (`criado_em`) em `historico_custos`.
-- Calcula por produto: `((novo - antigo) / antigo) * 100`.
-- Exibe:
-  - TOP 5 maiores aumentos de custo.
-  - TOP 5 maiores reduções de custo.
-- Respeita os mesmos filtros da Auditoria (período, origem, família, agrupamento e produto).
-- Implementado apenas com `supabase.from()` no frontend (sem RPC e sem SQL bruto).
-
-Interatividade da tabela analítica:
-- Cards de KPI são clicáveis para filtros rápidos:
-  - **Itens analisados**: remove filtro rápido.
-  - **Alertas (>5%)**: exibe somente itens com `variacao > 5`.
-  - **Média de variação**: exibe somente variações positivas (`variacao > 0`).
-- Cabeçalhos da tabela permitem ordenação interativa (asc/desc) por coluna.
-- Clique em qualquer linha mantém a navegação para análise temporal do item selecionado.
-
-Características dos filtros:
-- Dinâmicos.
-- Em cascata.
-- Limitados a valores realmente existentes no conjunto com custo.
-- Opções `null`/`undefined` são removidas antes da renderização.
+Se o código não existe em `dicionario_produtos`, é criado automaticamente com categorização nula.
+O banner de órfãos sinaliza quantos produtos estão sem categoria.
 
 ---
 
-## 6. Princípios do Sistema
+## 8. Filtros em Cascata
 
-1. Tolerância a dados imperfeitos na importação.
-2. Robustez: erro pontual não derruba lote inteiro.
-3. Consistência entre banco e UI por uso de dados reais com custo.
-4. Evitar opções vazias/nulas em filtros.
-5. Não usar descrição textual como chave de negócio.
-6. Não expor chaves técnicas como semântica de negócio no frontend.
+Cascata funcional: **Origem → Família → Agrupamento → Produto**
 
----
+- Apenas categorias com custo histórico real aparecem nos filtros
+- Mudança de Origem reseta Família, Agrupamento e Item
+- Mudança de Família reseta Agrupamento e Item
+- Filtros auto-atualizam o relatório quando período está preenchido
 
-## 7. Problemas já resolvidos
+### Busca Rápida (bypass da hierarquia)
 
-- Uso incorreto de UUID como se fosse semântica de negócio.
-- Divergências entre colunas esperadas e schema real no Supabase.
-- Parsing numérico incorreto para formato brasileiro.
-- Filtros exibindo valores vazios (`null`/`undefined`).
-- Dependência de textos como “FAMILIA XXXX” em vez de classificação estruturada.
+Campo de busca aceita código puro (`M012`) ou formato `M012 - DESCRIÇÃO`.
+Seta o Item diretamente e executa o relatório em 1 interação.
 
 ---
 
-## 8. Boas Práticas Técnicas
+## 9. Análise Temporal
 
-- Usar `codigo` como referência lógica de negócio em categorias.
-- Tratar `id` UUID como referência técnica.
-- Nunca depender de texto livre para lógica de categorização.
-- Manter sincronização entre:
-  - `dicionario_produtos` (hierarquia),
-  - `historico_custos` (fato de custo),
-  - categorias (descrições de exibição).
+- **Modo produto** (Item selecionado): série com o custo do produto específico
+- **Modo agregado** (sem Item específico): média de custo dos produtos do filtro por data
+- Linha auxiliar: média histórica do período (tracejada)
+- Badge de tendência: 🟢 Estável / 🔺 Alta / 🔻 Queda
 
 ---
 
-## Estrutura técnica do repositório
+## 10. Boas Práticas Técnicas
 
-- `view/ui-controller.js`: fluxo de UI, importação e auditoria.
-- `core/spreadsheet-engine.js`: leitura/mapeamento/normalização da planilha.
-- `core/report-engine.js`: cálculo da cascata e KPIs.
-- `src/services/api.js`: acesso Supabase e regras de gravação/consulta.
-- `docs/`: documentação técnica padronizada do projeto kustos.
-- `docs/arquitetura/indice-documentacao-kustos.md`: índice central da documentação.
-- `docs/troubleshooting/playbook-operacional.md`: playbook operacional com passo a passo atualizado.
-
----
-
-## 9. Evolução Temporal de Custos (Auditoria)
-
-A Auditoria agora exibe o painel **"Evolução Temporal de Custos"** com análise histórica no período filtrado.
-
-### Lógica temporal
-- Fonte: registros de `historico_custos` já carregados na auditoria (`api.getHistorico`).
-- Não usa RPC e não executa SQL bruto no frontend.
-- A série é processada localmente para evitar queries repetidas.
-
-### Agregações por seleção
-- **Produto individual** (`selI != TODOS`): série temporal com linha única do produto.
-- **Origem/Família/Agrupamento** (sem produto específico): série agregada por data com **média de custo** dos produtos do recorte.
-  - Escolha adotada por legibilidade (menos distorção por volume de itens em comparação com soma bruta).
-
-### Acessibilidade visual (gráficos da Auditoria)
-- Textos principais dos gráficos (`labels`, eixos, valores e legendas) padronizados em `#FFFFFF`.
-- Grid/bordas em branco translúcido para melhorar leitura da escala sem alterar a lógica dos dados.
-- Tooltips com contraste reforçado (texto branco e fundo escuro).
-
-### Indicadores e UX
-- Tooltip com:
-  - valor exato em BRL,
-  - data completa,
-  - variação vs ponto anterior.
-- Badge de tendência:
-  - 🟢 Estável
-  - 🔺 Tendência de Alta
-  - 🔻 Tendência de Queda
-- Linha auxiliar opcional implementada:
-  - **Média histórica** (tracejada).
-
-### Fallback
-- Quando existir apenas 1 ponto temporal:
-  - exibe `Histórico insuficiente para análise temporal`;
-  - oculta o canvas para evitar gráfico vazio..
+- `codigo` é referência de negócio em categorias; `id` UUID é referência técnica
+- Nunca depender de texto livre para categorização
+- `data_referencia` = competência; `criado_em` = evento de importação (não confundir)
+- Real-time debounced: 2s de delay para evitar reloads em cascata durante imports
+- Export via XLSX.js (mesma biblioteca já usada para leitura)

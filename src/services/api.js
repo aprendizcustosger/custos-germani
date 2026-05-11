@@ -15,8 +15,8 @@ const TABLES = {
 
 export const MASTER_ADMIN = {
   username: 'PedroK',
-  email: 'pedrok@germani.local',
-  password: 'Pedrok0206'
+  email: 'pedrok@germani.local'
+  // Credenciais não armazenadas em código-fonte
 };
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -334,18 +334,6 @@ export const api = {
     return supabase.auth.signInWithPassword({ email, password });
   },
 
-  async signInWithMasterBootstrap(login, password) {
-    const email = resolveLoginToEmail(login);
-    const loginResult = await supabase.auth.signInWithPassword({ email, password });
-    if (!loginResult.error) return loginResult;
-
-    const isMaster = login === MASTER_ADMIN.username && password === MASTER_ADMIN.password;
-    if (!isMaster) return loginResult;
-
-    await supabase.auth.signUp({ email: MASTER_ADMIN.email, password });
-    return supabase.auth.signInWithPassword({ email: MASTER_ADMIN.email, password });
-  },
-
   async signOut() {
     return supabase.auth.signOut();
   },
@@ -388,11 +376,7 @@ export const api = {
       const dataReferencia = normalizeISODate(row?.data_referencia || dataReferenciaSelecionada);
 
       if (!produto || custoTotal === null || !dataReferencia) {
-        console.error('DADO INVÁLIDO', {
-          produto,
-          custoTotal,
-          dataReferencia
-        });
+        console.error('DADO INVÁLIDO', { produto, custoTotal, dataReferencia });
         linhasErro += 1;
         erros.push({
           linha: index + 1,
@@ -593,6 +577,35 @@ export const api = {
       .gte('data_referencia', startDate.toISOString().slice(0, 10))
       .lte('data_referencia', endDate.toISOString().slice(0, 10))
       .order('data_referencia', { ascending: true });
+  },
+
+  async getProductHistory(codigoProduto) {
+    const { data, error } = await supabase
+      .from(TABLES.historico)
+      .select('codigo_produto, descricao, custo_total, custo_variavel, custo_direto_fixo, data_referencia, criado_em')
+      .eq('codigo_produto', String(codigoProduto || '').trim())
+      .order('data_referencia', { ascending: true })
+      .order('criado_em', { ascending: true });
+
+    if (error) return { data: null, error };
+
+    const sorted = data || [];
+    const annotated = sorted.map((row, i) => {
+      const prev = i > 0 ? sorted[i - 1] : null;
+      const custoAtual = Number(row.custo_total || 0);
+      const custoPrev = prev !== null ? Number(prev.custo_total || 0) : null;
+      const delta = custoPrev !== null ? custoAtual - custoPrev : null;
+      const deltaPerc = custoPrev !== null && custoPrev > 0
+        ? ((custoAtual - custoPrev) / custoPrev) * 100
+        : null;
+      return {
+        ...row,
+        delta: delta !== null ? roundTo4(delta) : null,
+        deltaPerc: deltaPerc !== null ? roundTo4(deltaPerc) : null
+      };
+    });
+
+    return { data: annotated, error: null };
   },
 
   async getTopVariacoesImportacao(filters = {}) {

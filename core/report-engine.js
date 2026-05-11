@@ -1,11 +1,16 @@
 /* Responsabilidade: cálculos analíticos e lógica de cascata (Origem -> Família -> Agrupamento -> Item). */
 
+const LIMIAR_ALERTA_VARIACAO_PERCENTUAL = 5;
+const LIMIAR_ESTAVEL = 3;
+const LIMIAR_OSCILANDO = 8;
+const MIN_PONTOS_REGIME = 4;
+
 export function fillSelect(select, options, first, selectedValue = null) {
   select.innerHTML = `<option value="${first.value}">${first.label}</option>`;
   options
     .filter(opt => !isNullLike(opt?.value) && !isNullLike(opt?.label))
     .forEach(opt => {
-    select.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
+      select.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
     });
 
   if (selectedValue !== null) {
@@ -18,6 +23,24 @@ function isNullLike(value) {
   if (value === null || value === undefined) return true;
   const normalized = String(value).trim().toLowerCase();
   return !normalized || normalized === 'null' || normalized === 'undefined';
+}
+
+function calcInstabilityScore(items) {
+  const variacoes = [];
+  for (let i = 1; i < items.length; i += 1) {
+    const antigo = Number(items[i - 1]?.custo_total || 0);
+    const novo = Number(items[i]?.custo_total || 0);
+    if (!Number.isFinite(antigo) || !Number.isFinite(novo) || antigo <= 0) continue;
+    const v = Math.abs(((novo - antigo) / antigo) * 100);
+    if (Number.isFinite(v)) variacoes.push(v);
+  }
+  return variacoes.length ? variacoes.reduce((a, b) => a + b, 0) / variacoes.length : 0;
+}
+
+function classifyInstability(score) {
+  if (score < LIMIAR_ESTAVEL) return 'ESTÁVEL';
+  if (score < LIMIAR_OSCILANDO) return 'OSCILANDO';
+  return 'MUITO INSTÁVEL';
 }
 
 export function calculateCascadeOptions(state, masters) {
@@ -91,9 +114,6 @@ export function calculateCascadeOptions(state, masters) {
 }
 
 export function buildReportRows(historico, masters = { origens: [], familias: [], agrupamentos: [] }) {
-  const LIMIAR_ALERTA_VARIACAO_PERCENTUAL = 5;
-  const LIMIAR_ESTAVEL = 3;
-  const LIMIAR_OSCILANDO = 8;
   const grouped = {};
   historico.forEach(item => {
     if (!grouped[item.codigo_produto]) grouped[item.codigo_produto] = [];
@@ -120,22 +140,18 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
     const alertaImportacao = Number.isFinite(variacaoTemporal)
       ? Math.abs(variacaoTemporal) >= LIMIAR_ALERTA_VARIACAO_PERCENTUAL
       : false;
-    const variacoesHistoricas = [];
-    for (let i = 1; i < byPeriodo.length; i += 1) {
-      const antigo = Number(byPeriodo[i - 1]?.custo_total || 0);
-      const novo = Number(byPeriodo[i]?.custo_total || 0);
-      if (!Number.isFinite(antigo) || !Number.isFinite(novo) || antigo <= 0) continue;
-      const variacaoIntervalo = Math.abs(((novo - antigo) / antigo) * 100);
-      if (Number.isFinite(variacaoIntervalo)) variacoesHistoricas.push(variacaoIntervalo);
+
+    const scoreInstabilidade = calcInstabilityScore(byPeriodo);
+    const classificacaoInstabilidade = classifyInstability(scoreInstabilidade);
+
+    // Detecção de mudança de regime: produto que era ESTÁVEL e ficou instável
+    let mudouRegime = false;
+    if (byPeriodo.length >= MIN_PONTOS_REGIME) {
+      const mid = Math.floor(byPeriodo.length / 2);
+      const scoreInicio = calcInstabilityScore(byPeriodo.slice(0, mid + 1));
+      const scoreFim = calcInstabilityScore(byPeriodo.slice(mid));
+      mudouRegime = classifyInstability(scoreInicio) === 'ESTÁVEL' && classifyInstability(scoreFim) !== 'ESTÁVEL';
     }
-    const scoreInstabilidade = variacoesHistoricas.length
-      ? variacoesHistoricas.reduce((acc, cur) => acc + cur, 0) / variacoesHistoricas.length
-      : 0;
-    const classificacaoInstabilidade = scoreInstabilidade < LIMIAR_ESTAVEL
-      ? 'ESTÁVEL'
-      : scoreInstabilidade < LIMIAR_OSCILANDO
-        ? 'OSCILANDO'
-        : 'MUITO INSTÁVEL';
 
     return {
       codigo: first.codigo_produto,
@@ -145,12 +161,14 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
       diferenca: ultimo ? diferenca : null,
       variacaoTemporal: ultimo ? variacaoTemporal : null,
       ultimaAtualizacao: ultimo?.criado_em || null,
+      dataCompetencia: ultimo?.data_referencia || null,
       inicial: ini,
       final: fim,
       variacao,
       scoreInstabilidade,
       classificacaoInstabilidade,
       alert: alertaImportacao,
+      mudouRegime,
       motivoAlerta: alertaImportacao
         ? `Variação de ${Math.abs(variacaoTemporal).toFixed(2)}% entre as duas últimas importações`
         : null
@@ -161,6 +179,7 @@ export function buildReportRows(historico, masters = { origens: [], familias: []
 export function calculateKpis(rows) {
   const totalItens = rows.length;
   const totalAlertas = rows.filter(r => r.alert).length;
+  const mudancasRegime = rows.filter(r => r.mudouRegime).length;
   const mediaVariacao = totalItens ? rows.reduce((acc, cur) => acc + cur.variacao, 0) / totalItens : 0;
-  return { totalItens, totalAlertas, mediaVariacao };
+  return { totalItens, totalAlertas, mediaVariacao, mudancasRegime };
 }

@@ -19,7 +19,7 @@
     <aside class="sidebar glass">
       <div class="brand-card">
         <h1><i class="ri-shield-check-line"></i> Germani Custos</h1>
-        <p>Painel de Auditoria + Tendência</p>
+        <p>Motor de Investigação de Custos</p>
       </div>
 
       <div class="user-box" id="userBox">Usuário: carregando...</div>
@@ -37,15 +37,21 @@
     </aside>
 
     <main class="content">
+      <!-- ===== VIEW: IMPORTAÇÃO ===== -->
       <section id="view-import" class="view">
         <header class="view-header center">
           <h2>Smart Scraper de Planilhas</h2>
           <p>Escaneamento inteligente dos cabeçalhos + validação antes de gravar.</p>
         </header>
 
+        <div id="orphansBanner" class="panel orphans-banner hidden">
+          <i class="ri-alert-line"></i>
+          <span><strong id="orphansCount">0</strong> produto(s) sem categorização completa detectado(s). Categorize no Supabase antes de analisar para evitar dados ausentes nos filtros.</span>
+        </div>
+
         <div class="panel center import-panel">
           <div class="field max-420">
-            <label for="importDate">Data de Referência</label>
+            <label for="importDate">Data de Referência (Competência)</label>
             <input type="date" id="importDate" />
           </div>
 
@@ -60,13 +66,27 @@
         </div>
       </section>
 
+      <!-- ===== VIEW: AUDITORIA ===== -->
       <section id="view-report" class="view hidden">
         <header class="view-header">
           <h2>Auditoria Analítica</h2>
-          <p>Filtros dinâmicos: Origem → Família → Agrupamento → Item/Produto.</p>
+          <p>Use a busca rápida ou navegue pelos filtros em cascata: Origem → Família → Agrupamento → Item.</p>
         </header>
 
         <div class="panel">
+          <!-- Busca direta: 1 interação para qualquer produto -->
+          <div class="search-bar">
+            <i class="ri-search-line"></i>
+            <input
+              type="text"
+              id="searchProduct"
+              list="productSuggestions"
+              placeholder="Busca rápida: código ou descrição do produto..."
+              autocomplete="off"
+            />
+            <datalist id="productSuggestions"></datalist>
+          </div>
+
           <div class="filters-grid">
             <div class="field"><label for="dtStart">Início</label><input type="date" id="dtStart" /></div>
             <div class="field"><label for="dtEnd">Fim</label><input type="date" id="dtEnd" /></div>
@@ -77,23 +97,62 @@
           </div>
 
           <div class="actions-row">
+            <button id="exportBtn" class="btn-outline" title="Exportar relatório atual para Excel"><i class="ri-download-2-line"></i> Exportar</button>
             <button id="analyzeBtn" class="btn-primary"><i class="ri-search-line"></i> Analisar</button>
           </div>
         </div>
 
         <div id="reportContent" class="hidden">
+          <!-- KPIs: 4 cards investigativos -->
           <div class="kpis">
-            <article class="kpi glass clickable" id="kpiCardItens" data-kpi-filter="all"><span>Itens analisados</span><strong id="kpiItens">0</strong></article>
-            <article class="kpi glass clickable" id="kpiCardAlertas" data-kpi-filter="alerts"><span>Alertas (>5%)</span><strong id="kpiAlertas">0</strong></article>
-            <article class="kpi glass clickable" id="kpiCardMedia" data-kpi-filter="positive"><span>Média de variação</span><strong id="kpiMedia">0,00%</strong></article>
+            <article class="kpi glass clickable" id="kpiCardItens" data-kpi-filter="all">
+              <span>Itens analisados</span>
+              <strong id="kpiItens">0</strong>
+            </article>
+            <article class="kpi glass clickable" id="kpiCardAlertas" data-kpi-filter="alerts">
+              <span>Alertas (&gt;5%)</span>
+              <strong id="kpiAlertas">0</strong>
+            </article>
+            <article class="kpi glass clickable" id="kpiCardRegime" data-kpi-filter="regime" title="Produtos que eram ESTÁVEL e ficaram instáveis no período">
+              <span>Mudanças de Regime</span>
+              <strong id="kpiRegime">0</strong>
+            </article>
+            <article class="kpi glass clickable" id="kpiCardMedia" data-kpi-filter="positive">
+              <span>Média de variação</span>
+              <strong id="kpiMedia">0,00%</strong>
+            </article>
+          </div>
+
+          <!-- Drill-through: histórico completo de importações do produto selecionado -->
+          <div id="drillPanel" class="panel drill-panel hidden">
+            <div class="drill-header">
+              <div>
+                <h3 id="drillTitle">Histórico de Importações</h3>
+                <p id="drillSubtitle" class="help-text"></p>
+              </div>
+              <button id="drillClose" class="btn-outline btn-sm"><i class="ri-close-line"></i> Fechar</button>
+            </div>
+            <div id="drillBody" class="drill-body"></div>
           </div>
 
           <div id="tablePanel" class="panel table-panel">
             <table>
               <thead>
                 <tr>
-                  <th data-sort-key="codigo">Código</th><th data-sort-key="descricao">Descrição</th><th data-sort-key="ultimoCusto">Último Custo</th><th data-sort-key="penultimoCusto">Penúltimo Custo</th><th data-sort-key="diferenca">Diferença</th><th data-sort-key="ultimaAtualizacao">Última Atualização</th>
-                  <th data-sort-key="inicial">Custo Inicial</th><th data-sort-key="final">Custo Final</th><th data-sort-key="variacao">Var%</th><th data-sort-key="scoreInstabilidade">Score Instab.</th><th data-sort-key="classificacaoInstabilidade">Classificação</th><th data-sort-key="alert">Status</th>
+                  <th data-sort-key="codigo">Código</th>
+                  <th data-sort-key="descricao">Descrição</th>
+                  <th data-sort-key="ultimoCusto">Último Custo</th>
+                  <th data-sort-key="penultimoCusto">Penúltimo Custo</th>
+                  <th data-sort-key="diferenca">Diferença</th>
+                  <th data-sort-key="ultimaAtualizacao">Importado em</th>
+                  <th data-sort-key="dataCompetencia">Competência</th>
+                  <th data-sort-key="inicial">Custo Inicial</th>
+                  <th data-sort-key="final">Custo Final</th>
+                  <th data-sort-key="variacao">Var%</th>
+                  <th data-sort-key="scoreInstabilidade">Score Instab.</th>
+                  <th data-sort-key="classificacaoInstabilidade">Classificação</th>
+                  <th data-sort-key="mudouRegime">Regime</th>
+                  <th data-sort-key="alert">Status</th>
                 </tr>
               </thead>
               <tbody id="tableBody"></tbody>
