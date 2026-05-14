@@ -120,3 +120,10 @@ Objetivo: antecipar investigação humana.
 - Tela de falha amigável no bootstrap quando variáveis obrigatórias não estiverem definidas.
 
 - Hardening de configuração em deploy estático: geração automática de `runtime-config.js` no build da Vercel com validação de variáveis obrigatórias e fail-fast.
+
+## Atualização contínua — 14/05/2026 (autenticação)
+
+- Auditoria de fluxo de autenticação com hardening fail-closed no bootstrap.
+- Remoção de alias de credenciais (`username` interno) para eliminar superfície de bypass.
+- Validação estrita de sucesso de login: usuário + sessão/token obrigatórios antes de liberar acesso.
+- Em qualquer inconsistência no login, sessão é encerrada e o acesso continua bloqueado.

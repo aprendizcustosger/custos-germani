@@ -286,6 +286,11 @@ A aplicação usa configuração por ambiente com estratégia de runtime real do
 
 `autoAuthenticate()` foi removido. O acesso agora exige autenticação real via Supabase (`signInWithPassword`) antes de carregar dados operacionais.
 
+Hardening adicional (14/05/2026):
+- Removido mapeamento residual de login alternativo (`username` -> e-mail) no frontend/API.
+- Login só é considerado válido com `data.user` **e** `data.session.access_token` retornados pelo Supabase.
+- Em falha de autenticação, a sessão é invalidada (`signOut`) e o acesso permanece bloqueado (fail-closed).
+
 ### Preparação para RLS
 
 A camada `src/services/api.js` continua usando exclusivamente `supabase.from()` e agora depende de sessão autenticada para leitura/escrita, reduzindo acoplamento a acesso irrestrito e facilitando ativação progressiva de políticas RLS.

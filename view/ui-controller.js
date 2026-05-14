@@ -24,43 +24,59 @@ async function init() {
 }
 
 async function requireAuthentication() {
-  const { data: currentUserData } = await api.getCurrentUser();
+  const { data: currentUserData, error: currentUserError } = await api.getCurrentUser();
+  if (currentUserError) {
+    await api.signOut();
+  }
+
   if (currentUserData?.user) {
     state.user = currentUserData.user;
     dom.userBox.textContent = `Usuário: ${state.user.email}`;
     return;
   }
 
-  const { value: credentials } = await Swal.fire({
-    title: 'Acesso operacional',
-    html: `
-      <input id="authLogin" class="swal2-input" placeholder="E-mail" autocomplete="username" />
-      <input id="authPassword" type="password" class="swal2-input" placeholder="Senha" autocomplete="current-password" />
-    `,
-    confirmButtonText: 'Entrar',
-    allowOutsideClick: false,
-    allowEscapeKey: false,
-    focusConfirm: false,
-    preConfirm: () => {
-      const login = document.getElementById('authLogin')?.value?.trim();
-      const password = document.getElementById('authPassword')?.value || '';
-      if (!login || !password) {
-        Swal.showValidationMessage('Informe e-mail e senha.');
-        return null;
+  let authenticated = false;
+  while (!authenticated) {
+    const { value: credentials } = await Swal.fire({
+      title: 'Acesso operacional',
+      html: `
+        <input id="authLogin" class="swal2-input" placeholder="E-mail" autocomplete="username" />
+        <input id="authPassword" type="password" class="swal2-input" placeholder="Senha" autocomplete="current-password" />
+      `,
+      confirmButtonText: 'Entrar',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showCancelButton: false,
+      focusConfirm: false,
+      preConfirm: () => {
+        const login = document.getElementById('authLogin')?.value?.trim();
+        const password = document.getElementById('authPassword')?.value || '';
+        if (!login || !password) {
+          Swal.showValidationMessage('Informe e-mail e senha.');
+          return null;
+        }
+        return { login, password };
       }
-      return { login, password };
+    });
+
+    if (!credentials) {
+      throw new Error('Autenticação obrigatória não informada.');
     }
-  });
 
-  if (!credentials) throw new Error('Autenticação cancelada.');
+    const { data, error } = await api.signIn(credentials.login, credentials.password);
+    if (error || !data?.user || !data?.session?.access_token) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Acesso negado',
+        text: 'Falha de autenticação. Verifique e-mail/senha e tente novamente.'
+      });
+      continue;
+    }
 
-  const { data, error } = await api.signIn(credentials.login, credentials.password);
-  if (error || !data?.user) {
-    throw new Error('Falha de autenticação. Verifique suas credenciais.');
+    state.user = data.user;
+    dom.userBox.textContent = `Usuário: ${state.user.email}`;
+    authenticated = true;
   }
-
-  state.user = data.user;
-  dom.userBox.textContent = `Usuário: ${state.user.email}`;
 }
 
 async function loadMasters(options = {}) {

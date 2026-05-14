@@ -12,12 +12,6 @@ const TABLES = {
   agrupamento: 'categorias_agrupamento'
 };
 
-export const MASTER_ADMIN = {
-  username: 'PedroK',
-  email: 'pedrok@germani.local'
-  // Credenciais não armazenadas em código-fonte
-};
-
 const supabase = createClient(appConfig.supabase.url, appConfig.supabase.anonKey);
 const IMPORT_CHUNK_SIZE = 400;
 
@@ -44,10 +38,6 @@ function normalizeMasterRows(rows = []) {
       return { ...row, id, descricao };
     })
     .filter(Boolean);
-}
-
-function resolveLoginToEmail(login) {
-  return login === MASTER_ADMIN.username ? MASTER_ADMIN.email : login;
 }
 
 function applyCascadeFilterInMemory(rows, filters) {
@@ -373,8 +363,20 @@ export const api = {
   },
 
   async signIn(login, password) {
-    const email = resolveLoginToEmail(login);
-    return supabase.auth.signInWithPassword({ email, password });
+    const email = String(login || '').trim().toLowerCase();
+    const sanitizedPassword = String(password || '');
+
+    if (!email || !sanitizedPassword) {
+      return { data: null, error: new Error('Credenciais obrigatórias.') };
+    }
+
+    const response = await supabase.auth.signInWithPassword({ email, password: sanitizedPassword });
+    if (response.error || !response.data?.user || !response.data?.session?.access_token) {
+      await supabase.auth.signOut();
+      return { data: null, error: response.error || new Error('Sessão inválida após autenticação.') };
+    }
+
+    return response;
   },
 
   async signOut() {
