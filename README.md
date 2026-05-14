@@ -111,6 +111,12 @@ Dados detalhados (sem perda analítica) ficam em **expansão por linha**: penúl
 - **Importado em (`criado_em`)** = evento de importação
 - **Competência (`data_referencia`)** = validade operacional do custo
 
+Refinamentos de UX investigativa (mai/2026):
+- Header da tabela com comportamento **sticky** para manter contexto durante rolagem.
+- **Chips de filtros ativos removíveis** para reduzir carga cognitiva e facilitar pivôs rápidos de investigação.
+- Hierarquia de leitura reforçada por linha: foco em produto + criticidade + variação + regime; detalhes secundários apenas em expansão sob demanda.
+- Contexto investigativo passa a antecipar sinais como "2ª alta consecutiva", "2ª queda consecutiva" e "oscilação crescente", reduzindo interpretação manual.
+
 ### Detecção de Mudança de Regime
 
 Produto com ≥ 4 pontos no período: compara instabilidade da primeira metade vs. segunda metade.

@@ -40,6 +40,7 @@ const dom = {
   selI: document.getElementById('selI'),
   analyzeBtn: document.getElementById('analyzeBtn'),
   exportBtn: document.getElementById('exportBtn'),
+  activeFilterChips: document.getElementById('activeFilterChips'),
   reportContent: document.getElementById('reportContent'),
   tablePanel: document.getElementById('tablePanel'),
   tableBody: document.getElementById('tableBody'),
@@ -677,8 +678,51 @@ function applyTableView(options = {}) {
   });
   const sortedRows = [...filteredRows].sort((a, b) => compareRowsBySort(a, b, state.reportView.sortKey, state.reportView.sortDirection));
   renderTable(sortedRows, { hasSingleItemAnalysis });
+  renderActiveFilterChips();
   updateKpiCardState();
   updateSortHeaderState();
+}
+
+function renderActiveFilterChips() {
+  if (!dom.activeFilterChips) return;
+  const chips = [];
+  const pushChip = (key, label, value) => value && value !== 'TODAS' && value !== 'TODOS' && chips.push({ key, label, value });
+  pushChip('dtStart', 'Início', dom.dtStart.value);
+  pushChip('dtEnd', 'Fim', dom.dtEnd.value);
+  pushChip('origem', 'Origem', dom.selO.options[dom.selO.selectedIndex]?.textContent);
+  pushChip('familia', 'Família', dom.selF.options[dom.selF.selectedIndex]?.textContent);
+  pushChip('agrupamento', 'Agrupamento', dom.selA.options[dom.selA.selectedIndex]?.textContent);
+  pushChip('item', 'Produto', dom.selI.value);
+  if (state.reportView.quickFilter !== 'all') {
+    const quickLabels = { alerts: 'Alertas >5%', positive: 'Variação positiva', regime: 'Mudança de regime' };
+    chips.push({ key: 'quickFilter', label: 'Fila', value: quickLabels[state.reportView.quickFilter] || 'Filtro rápido' });
+  }
+  if (!chips.length) {
+    dom.activeFilterChips.classList.add('hidden');
+    dom.activeFilterChips.innerHTML = '';
+    return;
+  }
+  dom.activeFilterChips.classList.remove('hidden');
+  dom.activeFilterChips.innerHTML = chips.map(chip => `
+    <button type="button" class="filter-chip" data-chip-key="${chip.key}">
+      <span>${escapeHtml(chip.label)}: ${escapeHtml(chip.value)}</span><i class="ri-close-line"></i>
+    </button>
+  `).join('');
+  dom.activeFilterChips.querySelectorAll('.filter-chip').forEach(btn => {
+    btn.addEventListener('click', () => removeFilterChip(btn.dataset.chipKey));
+  });
+}
+
+function removeFilterChip(chipKey) {
+  if (chipKey === 'dtStart') dom.dtStart.value = '';
+  if (chipKey === 'dtEnd') dom.dtEnd.value = '';
+  if (chipKey === 'origem') dom.selO.value = 'TODAS';
+  if (chipKey === 'familia') dom.selF.value = 'TODAS';
+  if (chipKey === 'agrupamento') dom.selA.value = 'TODOS';
+  if (chipKey === 'item') dom.selI.value = 'TODOS';
+  if (chipKey === 'quickFilter') state.reportView.quickFilter = 'all';
+  if (['origem', 'familia', 'agrupamento', 'item'].includes(chipKey)) refreshCascade();
+  runReport({ silent: true });
 }
 
 function compareRowsBySort(a, b, key, direction) {
@@ -772,6 +816,14 @@ function getOperationalPriority(row) {
 }
 
 function buildInvestigativeSummary(row) {
+  const signals = [];
+  if (row.mudouRegime) signals.push('Mudou regime após estabilidade longa.');
+  if ((row.variacao ?? 0) > 0 && (row.variacaoTemporal ?? 0) > 0) signals.push('2ª alta consecutiva entre importações.');
+  if ((row.variacao ?? 0) < 0 && (row.variacaoTemporal ?? 0) < 0) signals.push('2ª queda consecutiva entre importações.');
+  if (Math.abs(Number(row.variacao || 0)) > Math.abs(Number(row.variacaoTemporal || 0)) + 2 && row.classificacaoInstabilidade !== 'ESTÁVEL') {
+    signals.push('Oscilação crescente no recorte atual.');
+  }
+  if (signals.length) return signals.slice(0, 2).join(' ');
   if (row.mudouRegime) return 'Mudou regime após fase estável; priorizar investigação temporal.';
   if (row.classificacaoInstabilidade === 'MUITO INSTÁVEL') return 'Oscilação crescente com comportamento instável no período.';
   if (Math.abs(Number(row.variacao || 0)) >= 10) return `Variação expressiva de ${row.variacao.toFixed(2)}% no recorte analisado.`;

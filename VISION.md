@@ -75,6 +75,14 @@ Clicar em qualquer produto na tabela abre o histórico completo de importações
 - Delta monetário e percentual vs. registro anterior
 - Destaque visual para variações acima de 5%
 
+### Fila investigativa com baixa carga cognitiva
+A tabela principal prioriza leitura operacional com hierarquia clara:
+- principal: produto, criticidade, variação e mudança de regime
+- contextual: resumo investigativo automático por linha
+- secundário: detalhes completos em expansão sob demanda
+
+O objetivo é reduzir leitura horizontal e manter o comportamento de cockpit investigativo, não de planilha ERP.
+
 ### Detecção de mudança de regime
 Produto classificado como `ESTÁVEL` na primeira metade do período e `OSCILANDO` ou `MUITO INSTÁVEL` na segunda metade → marcado como "Mudança de Regime".
 Disponível como KPI clicável e como coluna na tabela.

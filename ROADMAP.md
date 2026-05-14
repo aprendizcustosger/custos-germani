@@ -106,3 +106,10 @@ Objetivo: antecipar investigação humana.
 ## Atualização contínua — 11/05/2026
 
 - Hardening de performance operacional: bulk upsert em chunk, redução de requests no import e pacote de índices SQL para histórico temporal e comparação de importações.
+
+## Atualização contínua — 14/05/2026
+
+- Refinamento da fila investigativa: redução de poluição visual na tabela principal com foco em criticidade operacional.
+- Header sticky e densidade visual ajustada para leitura vertical contínua.
+- Chips removíveis de filtros ativos para acelerar mudança de recorte sem reset manual de todos os campos.
+- Contexto investigativo pré-interpretado por linha (sequência de alta/queda e sinais de oscilação crescente).

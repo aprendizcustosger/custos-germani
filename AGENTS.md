@@ -178,3 +178,5 @@ Toda mudança de comportamento temporal, de filtro ou de modelo de dados DEVE se
 
 
 - Atualização 2026-05-11: importações devem priorizar bulk upsert com chunking (faixa alvo 300-500) e consultas temporais sempre com ORDER BY explícito.
+
+- Atualização 2026-05-14: a tabela principal da auditoria deve operar como fila investigativa (não planilha), com header sticky, chips removíveis de filtros ativos e contexto pré-interpretado por linha para reduzir carga cognitiva.
