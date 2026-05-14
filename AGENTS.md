@@ -191,3 +191,6 @@ Toda mudança de comportamento temporal, de filtro ou de modelo de dados DEVE se
 
 
 - Atualização 2026-05-14 (runtime real de deploy estático): priorizar `runtime-config.js` (`window.__ENV__`) como fonte principal no browser; manter fallback de compatibilidade para `window.__RUNTIME_CONFIG__`, `import.meta.env` e `<meta name="VITE_*">`, com validação obrigatória de `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
+
+
+- Atualização 2026-05-14 (geração de config em deploy): em Vercel, `runtime-config.js` deve ser gerado no build via `scripts/generate-runtime-config.mjs` (não editado manualmente), com falha obrigatória quando `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` estiverem ausentes.

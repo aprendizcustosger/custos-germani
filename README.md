@@ -162,6 +162,14 @@ Variação > 5% entre os dois últimos imports de um produto → badge ALERTA.
 - Consultas de comparação entre importações com recorte menor de eventos (`criado_em`) para reduzir carga de leitura.
 - Script de índices essenciais em `sql/2026-05-11_indices_performance_operacional.sql` para acelerar drill-through, filtros e comparações temporais.
 
+
+### Configuração operacional em deploy estático
+
+- O runtime do frontend lê configurações prioritariamente de `runtime-config.js` (`window.__ENV__`).
+- Em Vercel, `vercel.json` executa `node scripts/generate-runtime-config.mjs` para gerar o arquivo com as variáveis reais de ambiente.
+- Fallbacks de compatibilidade permanecem ativos (`window.__RUNTIME_CONFIG__`, `import.meta.env`, `<meta name="VITE_*">`).
+- `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` são obrigatórias e validadas no build e no bootstrap.
+
 ## 5. Módulos
 
 | Arquivo | Responsabilidade |
