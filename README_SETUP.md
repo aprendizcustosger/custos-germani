@@ -47,6 +47,22 @@ npm run build
 Se aparecer erro de `package.json` ausente, o workspace atual não montou a raiz do frontend.
 
 
+
+## Criar usuário master (Supabase Auth)
+
+Para criar um usuário master operacional sem salvar credenciais no código-fonte:
+
+```bash
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=SEU_SERVICE_ROLE_KEY \
+node scripts/create-master-user.mjs --login=Pedrokurosaki --password=kurosaki123
+```
+
+Notas:
+- O script usa `SUPABASE_SERVICE_ROLE_KEY` apenas em runtime local/CI e não persiste a chave em arquivos do repositório.
+- Se `--login` não tiver `@`, o script cria o e-mail sintético `<login>@master.local` para autenticação via Supabase Auth.
+- O script é idempotente: se o usuário já existir, ele não cria duplicado.
+
 ## Diagnóstico rápido de bootstrap
 
 Quando faltar configuração obrigatória, a mensagem inclui as fontes avaliadas (`window.__ENV__/__RUNTIME_CONFIG__`, `import.meta.env`, `meta[name=VITE_*]`) para acelerar investigação operacional em produção.
