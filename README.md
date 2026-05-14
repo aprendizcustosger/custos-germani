@@ -166,7 +166,10 @@ Variação > 5% entre os dois últimos imports de um produto → badge ALERTA.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `view/ui-controller.js` | Orquestração de UI, busca, drill-through, export, gráficos |
+| `view/ui-controller.js` | Orquestração principal (bootstrap, fluxo entre módulos, ciclo investigativo) |
+| `view/ui-state.js` | Estado central da UI (filtros, visão da fila e referências de gráficos) |
+| `view/ui-dom.js` | Mapeamento único de referências do DOM para reduzir acoplamento |
+| `view/ui-utils.js` | Utilitários puros de formatação, debounce, escape e feedback visual |
 | `core/spreadsheet-engine.js` | Parsing de planilhas, detecção fuzzy de colunas, normalização |
 | `core/report-engine.js` | Cálculos analíticos, cascata, detecção de regime |
 | `src/services/api.js` | Camada única de acesso Supabase |
