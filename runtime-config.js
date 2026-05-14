@@ -1,5 +1,5 @@
 /* Runtime config injetado antes do bootstrap da aplicação.
- * Preencha os valores no deploy (ex.: etapa de build/copy no Vercel).
+ * Em deploy, este arquivo é gerado automaticamente por scripts/generate-runtime-config.mjs.
  */
 window.__ENV__ = window.__ENV__ || {
   VITE_SUPABASE_URL: '',

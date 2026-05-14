@@ -118,3 +118,5 @@ Objetivo: antecipar investigação humana.
 
 - Estratégia final de configuração híbrida: prioridade `import.meta.env` + fallback `window.__ENV__` + fallback `<meta name="VITE_*">` com contrato `VITE_*` para compatibilidade de runtime real.
 - Tela de falha amigável no bootstrap quando variáveis obrigatórias não estiverem definidas.
+
+- Hardening de configuração em deploy estático: geração automática de `runtime-config.js` no build da Vercel com validação de variáveis obrigatórias e fail-fast.

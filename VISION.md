@@ -135,3 +135,5 @@ Banner visível na tela de importação quando há produtos sem categorização 
 - Segurança operacional mínima (config por ambiente + autenticação real) é pré-requisito para escala do motor investigativo.
 
 - Configuração de frontend com prioridade para `import.meta.env`, fallback seguro para `window.__ENV__`/`window.__RUNTIME_CONFIG__` e fallback final via `<meta name="VITE_*">`, evitando falhas de bootstrap em runtimes sem Vite.
+
+- Confiabilidade de bootstrap em runtime estático é tratada como requisito investigativo: sem `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` válidas, o deploy deve falhar antes de publicar.

@@ -12,6 +12,8 @@ VITE_ENABLE_VERBOSE_LOGS=false
 
 ## Regras operacionais
 
+- A fonte principal no browser estático é `runtime-config.js` com `window.__ENV__`.
+
 - Em deploy estático/browser clássico, publique `runtime-config.js` na raiz com `window.__ENV__` e as chaves `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_ENABLE_VERBOSE_LOGS`.
 - `runtime-config.js` deve ser carregado antes do bootstrap em `index.html`.
 - Em ambiente com bundler Vite, `import.meta.env` segue aceito apenas como fallback de compatibilidade.
@@ -48,3 +50,11 @@ Se aparecer erro de `package.json` ausente, o workspace atual não montou a raiz
 ## Diagnóstico rápido de bootstrap
 
 Quando faltar configuração obrigatória, a mensagem inclui as fontes avaliadas (`window.__ENV__/__RUNTIME_CONFIG__`, `import.meta.env`, `meta[name=VITE_*]`) para acelerar investigação operacional em produção.
+
+
+## Geração automática do runtime-config (Vercel)
+
+- O projeto inclui `scripts/generate-runtime-config.mjs`, executado no `buildCommand` da Vercel (`vercel.json`).
+- Esse script valida `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no ambiente de deploy e gera `runtime-config.js` com `window.__ENV__` preenchido.
+- Se faltar variável obrigatória, o build falha cedo para evitar publicação de frontend inválido.
+- O browser **não usa** `process.env`; `process.env` é usado apenas no build/deploy para materializar `runtime-config.js`.
