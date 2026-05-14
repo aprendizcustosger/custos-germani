@@ -182,3 +182,6 @@ Toda mudança de comportamento temporal, de filtro ou de modelo de dados DEVE se
 - Atualização 2026-05-14: a tabela principal da auditoria deve operar como fila investigativa (não planilha), com header sticky, chips removíveis de filtros ativos e contexto pré-interpretado por linha para reduzir carga cognitiva.
 
 - Atualização 2026-05-14: frontend deve usar `import.meta.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_ENABLE_VERBOSE_LOGS`) sem dependência de `globalThis`/`runtime-config.js`.
+
+
+- Atualização 2026-05-14 (compatibilidade runtime): frontend deve priorizar `import.meta.env`, mas com fallback seguro para `window.__ENV__` quando o deploy não expuser `import.meta.env`; manter validação obrigatória de `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.

@@ -259,7 +259,7 @@ Seta o Item diretamente e executa o relatório em 1 interação.
 
 ## 12. Segurança e Configuração por Ambiente
 
-A aplicação usa configuração por ambiente via `import.meta.env` (padrão Vite) e não depende de injeção global em runtime.
+A aplicação usa configuração por ambiente com estratégia híbrida de runtime: prioriza `import.meta.env` (quando disponível) e aplica fallback para `window.__ENV__`/`window.__RUNTIME_CONFIG__` em deploys estáticos sem injeção Vite.
 
 ### Arquivos de configuração
 

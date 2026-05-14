@@ -18,4 +18,4 @@ Definir em Development, Preview e Production:
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_ENABLE_VERBOSE_LOGS`
 
-O frontend lê as configurações exclusivamente por `import.meta.env`.
+O frontend lê configurações por estratégia híbrida: `import.meta.env` quando disponível e fallback `window.__ENV__`/`window.__RUNTIME_CONFIG__` em runtime estático.

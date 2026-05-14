@@ -7,12 +7,44 @@ function requireValue(key, value) {
   return value;
 }
 
+function readWindowEnv() {
+  if (typeof window === 'undefined') return null;
+
+  const candidates = [window.__ENV__, window.__RUNTIME_CONFIG__];
+  return candidates.find(candidate => candidate && typeof candidate === 'object') || null;
+}
+
+function resolveEnvSource() {
+  const importMetaEnv =
+    typeof import.meta !== 'undefined' && import.meta && import.meta.env
+      ? import.meta.env
+      : null;
+
+  if (importMetaEnv) {
+    return { source: 'import.meta.env', env: importMetaEnv };
+  }
+
+  const runtimeEnv = readWindowEnv();
+  if (runtimeEnv) {
+    return { source: 'window runtime env', env: runtimeEnv };
+  }
+
+  return { source: 'none', env: {} };
+}
+
+function parseBoolean(value) {
+  return String(value).trim().toLowerCase() === 'true';
+}
+
+const { env, source: envSource } = resolveEnvSource();
+
 export const appConfig = {
-  appEnv: import.meta.env.MODE || 'development',
-  enableVerboseLogs: import.meta.env.VITE_ENABLE_VERBOSE_LOGS === 'true',
+  appEnv: env.MODE || env.NODE_ENV || 'development',
+  envSource,
+  enableVerboseLogs: parseBoolean(env.VITE_ENABLE_VERBOSE_LOGS),
   supabase: {
-    url: requireValue('VITE_SUPABASE_URL', import.meta.env.VITE_SUPABASE_URL),
-    anonKey: requireValue('VITE_SUPABASE_ANON_KEY', import.meta.env.VITE_SUPABASE_ANON_KEY)
+    url: requireValue('VITE_SUPABASE_URL', env.VITE_SUPABASE_URL),
+    anonKey: requireValue('VITE_SUPABASE_ANON_KEY', env.VITE_SUPABASE_ANON_KEY)
   }
 };
 

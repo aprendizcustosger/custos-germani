@@ -134,4 +134,4 @@ Banner visível na tela de importação quando há produtos sem categorização 
 
 - Segurança operacional mínima (config por ambiente + autenticação real) é pré-requisito para escala do motor investigativo.
 
-- Configuração de frontend padronizada em `import.meta.env` (Vite), removendo dependência de runtime global para reduzir falhas de bootstrap.
+- Configuração de frontend com prioridade para `import.meta.env` e fallback seguro para `window.__ENV__`, evitando falhas de bootstrap em runtimes sem Vite.
