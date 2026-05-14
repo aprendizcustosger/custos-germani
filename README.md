@@ -148,6 +148,14 @@ Variação > 5% entre os dois últimos imports de um produto → badge ALERTA.
 
 ---
 
+
+### Escalabilidade operacional (atualização de 11/05/2026)
+
+- Importação com **bulk upsert em chunks (400 linhas)** para reduzir requisições HTTP e manter tolerância parcial de erros.
+- Garantia de produtos no dicionário em **lote** antes da escrita da fato `historico_custos`.
+- Consultas de comparação entre importações com recorte menor de eventos (`criado_em`) para reduzir carga de leitura.
+- Script de índices essenciais em `sql/2026-05-11_indices_performance_operacional.sql` para acelerar drill-through, filtros e comparações temporais.
+
 ## 5. Módulos
 
 | Arquivo | Responsabilidade |

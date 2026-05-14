@@ -19,6 +19,7 @@ export const MASTER_ADMIN = {
 };
 
 const supabase = createClient(appConfig.supabase.url, appConfig.supabase.anonKey);
+const IMPORT_CHUNK_SIZE = 400;
 
 function resolveMasterId(row) {
   return row?.id ?? row?.codigo ?? row?.cod ?? row?.uuid ?? row?.value ?? null;
@@ -222,6 +223,49 @@ async function garantirProdutoNoDicionario(produto, descricao) {
   return { ok: true, created: true };
 }
 
+async function garantirProdutosNoDicionarioEmLote(produtos = []) {
+  const unicos = new Map();
+  (produtos || []).forEach(item => {
+    const codigo = String(item?.codigo_produto || '').trim();
+    if (!codigo) return;
+    if (!unicos.has(codigo)) {
+      unicos.set(codigo, {
+        codigo_produto: codigo,
+        descricao: String(item?.descricao || '').trim() || null,
+        origem_id: null,
+        familia_id: null,
+        agrupamento_cod: null
+      });
+    }
+  });
+
+  const codigos = [...unicos.keys()];
+  if (!codigos.length) return { ok: true, inseridos: 0, erros: [] };
+
+  const { data: existentes, error: erroExistentes } = await supabase
+    .from(TABLES.dicionario)
+    .select('codigo_produto')
+    .in('codigo_produto', codigos);
+
+  if (erroExistentes) {
+    return { ok: false, inseridos: 0, erros: [{ tipo: 'dicionario_busca', mensagem: erroExistentes.message }] };
+  }
+
+  const existentesSet = new Set((existentes || []).map(row => String(row?.codigo_produto || '').trim()));
+  const pendentes = codigos.filter(codigo => !existentesSet.has(codigo)).map(codigo => unicos.get(codigo));
+  if (!pendentes.length) return { ok: true, inseridos: 0, erros: [] };
+
+  const { error: erroInsert } = await supabase
+    .from(TABLES.dicionario)
+    .upsert(pendentes, { onConflict: 'codigo_produto' });
+
+  if (erroInsert) {
+    return { ok: false, inseridos: 0, erros: [{ tipo: 'dicionario_upsert', mensagem: erroInsert.message }] };
+  }
+
+  return { ok: true, inseridos: pendentes.length, erros: [] };
+}
+
 export const api = {
   async getMasters() {
     const [
@@ -400,15 +444,6 @@ export const api = {
         continue;
       }
 
-      const garantiaDicionario = await garantirProdutoNoDicionario(produto, rowNormalizada.descricao);
-      if (!garantiaDicionario?.ok) {
-        console.warn('Falha ao garantir produto no dicionário; tentativa de importação continuará.', {
-          linha: index + 1,
-          codigo_produto: produto,
-          motivo: garantiaDicionario?.reason || 'desconhecido'
-        });
-      }
-
       payloadValido.push({
         codigo_produto: produto,
         descricao: rowNormalizada.descricao ?? null,
@@ -420,31 +455,47 @@ export const api = {
     }
 
     if (payloadValido.length > 0) {
-      for (const registro of payloadValido) {
+      const dicionarioStatus = await garantirProdutosNoDicionarioEmLote(payloadValido);
+      if (!dicionarioStatus.ok) {
+        console.warn('Falha parcial ao garantir produtos no dicionário em lote.', dicionarioStatus.erros);
+        erros.push(...(dicionarioStatus.erros || []).map(erro => ({
+          linha: null,
+          tipo: erro.tipo || 'dicionario',
+          mensagem: erro.mensagem || 'Falha desconhecida ao preparar dicionário',
+          row: null
+        })));
+      }
+    }
+
+    if (payloadValido.length > 0) {
+      for (let i = 0; i < payloadValido.length; i += IMPORT_CHUNK_SIZE) {
+        const chunk = payloadValido.slice(i, i + IMPORT_CHUNK_SIZE);
         const { data, error } = await supabase
           .from(TABLES.historico)
-          .upsert(registro, { onConflict: 'codigo_produto,data_referencia' });
+          .upsert(chunk, { onConflict: 'codigo_produto,data_referencia' });
 
         if (error) {
-          linhasErro += 1;
-          erros.push({
-            linha: null,
-            tipo: 'historico',
-            mensagem: `Falha ao inserir produto ${registro.codigo_produto} no histórico: ${error.message || 'erro desconhecido'}`,
-            row: registro
+          linhasErro += chunk.length;
+          chunk.forEach(registro => {
+            erros.push({
+              linha: null,
+              tipo: 'historico',
+              mensagem: `Falha ao inserir produto ${registro.codigo_produto} no histórico: ${error.message || 'erro desconhecido'}`,
+              row: registro
+            });
           });
-          console.error('Falha Supabase ao upsert histórico:', {
+          console.error('Falha Supabase ao upsert histórico em chunk:', {
             message: error.message,
             details: error.details,
             hint: error.hint,
             code: error.code,
-            registro,
+            chunkSize: chunk.length,
             data
           });
           continue;
         }
 
-        linhasImportadas += 1;
+        linhasImportadas += chunk.length;
       }
     }
 
@@ -511,7 +562,7 @@ export const api = {
       .from(TABLES.historico)
       .select('criado_em')
       .order('criado_em', { ascending: false })
-      .limit(4000);
+      .limit(1000);
 
     if (importError) return { data: null, error: importError };
 
@@ -612,7 +663,7 @@ export const api = {
       .from(TABLES.historico)
       .select('criado_em')
       .order('criado_em', { ascending: false })
-      .limit(4000);
+      .limit(1000);
 
     if (importError) return { data: null, error: importError };
 

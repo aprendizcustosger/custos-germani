@@ -101,3 +101,8 @@ Objetivo: antecipar investigação humana.
 - IA genérica sem valor específico de auditoria de custos
 
 - [x] Hardening inicial concluído: configuração por ambiente, remoção de auto-auth e gate real de acesso.
+
+
+## Atualização contínua — 11/05/2026
+
+- Hardening de performance operacional: bulk upsert em chunk, redução de requests no import e pacote de índices SQL para histórico temporal e comparação de importações.
