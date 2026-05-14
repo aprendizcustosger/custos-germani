@@ -116,5 +116,5 @@ Objetivo: antecipar investigação humana.
 
 ## Atualização contínua — 14/05/2026 (configuração frontend)
 
-- Migração completa da configuração de runtime global para `import.meta.env` com contrato `VITE_*`.
+- Estratégia final de configuração híbrida: prioridade `import.meta.env` + fallback `window.__ENV__` com contrato `VITE_*` para compatibilidade de runtime real.
 - Tela de falha amigável no bootstrap quando variáveis obrigatórias não estiverem definidas.

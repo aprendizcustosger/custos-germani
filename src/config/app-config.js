@@ -7,12 +7,37 @@ function requireValue(key, value) {
   return value;
 }
 
+function resolveEnvSource() {
+  const importMetaEnv =
+    typeof import.meta !== 'undefined' && import.meta && import.meta.env
+      ? import.meta.env
+      : null;
+
+  if (importMetaEnv) {
+    return { source: 'import.meta.env', env: importMetaEnv };
+  }
+
+  const runtimeEnv =
+    typeof window !== 'undefined' && window.__ENV__ && typeof window.__ENV__ === 'object'
+      ? window.__ENV__
+      : null;
+
+  if (runtimeEnv) {
+    return { source: 'window.__ENV__', env: runtimeEnv };
+  }
+
+  return { source: 'none', env: {} };
+}
+
+const { env, source: envSource } = resolveEnvSource();
+
 export const appConfig = {
-  appEnv: import.meta.env.MODE || 'development',
-  enableVerboseLogs: import.meta.env.VITE_ENABLE_VERBOSE_LOGS === 'true',
+  appEnv: env.MODE || env.NODE_ENV || 'development',
+  envSource,
+  enableVerboseLogs: env.VITE_ENABLE_VERBOSE_LOGS === 'true',
   supabase: {
-    url: requireValue('VITE_SUPABASE_URL', import.meta.env.VITE_SUPABASE_URL),
-    anonKey: requireValue('VITE_SUPABASE_ANON_KEY', import.meta.env.VITE_SUPABASE_ANON_KEY)
+    url: requireValue('VITE_SUPABASE_URL', env.VITE_SUPABASE_URL),
+    anonKey: requireValue('VITE_SUPABASE_ANON_KEY', env.VITE_SUPABASE_ANON_KEY)
   }
 };
 
